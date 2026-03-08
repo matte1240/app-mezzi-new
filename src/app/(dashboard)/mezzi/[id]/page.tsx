@@ -161,6 +161,7 @@ export default async function VehicleDetailPage({
         <TabsContent value="km" className="mt-4">
           <MileageTab
             vehicleId={vehicle.id}
+            lastKm={lastKm}
             readings={vehicle.mileageReadings.map((r) => ({
               ...r,
               date: r.date.toISOString(),
@@ -173,6 +174,7 @@ export default async function VehicleDetailPage({
           <RefuelingTab
             vehicleId={vehicle.id}
             vehicleFuelType={vehicle.fuelType}
+            lastKm={lastKm}
             refuelings={vehicle.refuelings.map((r) => ({
               ...r,
               date: r.date.toISOString(),
@@ -187,6 +189,7 @@ export default async function VehicleDetailPage({
         <TabsContent value="maintenance" className="mt-4">
           <MaintenanceTab
             vehicleId={vehicle.id}
+            lastKm={lastKm}
             interventions={vehicle.maintenanceInterventions.map((m) => ({
               ...m,
               date: m.date.toISOString(),

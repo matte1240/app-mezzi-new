@@ -27,7 +27,8 @@ services:
       PORT: "${PORT:-3005}"
       DATABASE_URL: "postgresql://mezzi:mezzi_password@db:5432/mezzi_db?schema=public"
       NEXTAUTH_URL: "http://localhost:3005"
-      NEXTAUTH_SECRET: "change-me-in-production-use-openssl-rand-base64-32"
+      NEXTAUTH_SECRET: "${NEXTAUTH_SECRET:-dev-secret-change-in-production}"
+      AUTH_TRUST_HOST: "true"
       UPLOAD_DIR: "/app/uploads"
     volumes:
       - uploads:/app/uploads

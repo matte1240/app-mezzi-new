@@ -1,16 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { getSessionUser } from "@/lib/auth-utils";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import Link from "next/link";
-import { maintenanceTypeLabels } from "@/lib/labels";
+import { getSessionUser, canManageDeadlines } from "@/lib/auth-utils";
+import { InterventiList, type InterventoItem, type PlannedItem, type VehicleOption } from "@/components/interventi-list";
 
 export default async function InterventiPage() {
   const user = await getSessionUser();
@@ -18,83 +8,80 @@ export default async function InterventiPage() {
   const whereVehicle =
     user.role === "DRIVER" ? { assignedDriverId: user.id } : {};
 
-  const interventions = await prisma.maintenanceIntervention.findMany({
-    where: { vehicle: whereVehicle },
-    include: { vehicle: true, user: true },
-    orderBy: { date: "desc" },
-    take: 100,
-  });
+  const [interventions, planned, vehicles] = await Promise.all([
+    prisma.maintenanceIntervention.findMany({
+      where: { vehicle: whereVehicle },
+      include: { vehicle: true, user: true },
+      orderBy: { date: "desc" },
+      take: 500,
+    }),
+    prisma.plannedMaintenance.findMany({
+      where: { vehicle: whereVehicle },
+      include: { vehicle: true, createdBy: true },
+      orderBy: { scheduledDate: "asc" },
+      take: 500,
+    }),
+    prisma.vehicle.findMany({
+      where: { ...whereVehicle, status: "ACTIVE" },
+      select: { id: true, plate: true },
+      orderBy: { plate: "asc" },
+    }),
+  ]);
+
+  const items: InterventoItem[] = interventions.map((m) => ({
+    id: m.id,
+    date: m.date.toISOString(),
+    km: m.km,
+    type: m.type,
+    costEur: m.costEur ? String(m.costEur) : null,
+    garage: m.garage,
+    description: m.description,
+    vehicleId: m.vehicleId,
+    vehiclePlate: m.vehicle.plate,
+    userName: m.user.name,
+  }));
+
+  // Latest km per vehicle (for both forms)
+  const lastKmMap: Record<string, number> = {};
+  const allVehicleIds = new Set([
+    ...vehicles.map((v) => v.id),
+    ...planned.map((p) => p.vehicleId),
+  ]);
+  for (const vid of allVehicleIds) {
+    const last = await prisma.mileageReading.findFirst({
+      where: { vehicleId: vid },
+      orderBy: { km: "desc" },
+      select: { km: true },
+    });
+    if (last) lastKmMap[vid] = last.km;
+  }
+
+  const plannedItems: PlannedItem[] = planned.map((p) => ({
+    id: p.id,
+    vehicleId: p.vehicleId,
+    vehiclePlate: p.vehicle.plate,
+    vehicleCurrentKm: lastKmMap[p.vehicleId] ?? 0,
+    type: p.type,
+    scheduledDate: p.scheduledDate.toISOString(),
+    description: p.description,
+    garage: p.garage,
+    notes: p.notes,
+    status: p.status,
+    createdByName: p.createdBy.name,
+  }));
+
+  const vehicleOptions: VehicleOption[] = vehicles.map((v) => ({
+    id: v.id,
+    plate: v.plate,
+  }));
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Interventi</h1>
-        <p className="text-muted-foreground">
-          Tutti gli interventi di manutenzione
-        </p>
-      </div>
-
-      <div className="rounded-lg border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Data</TableHead>
-              <TableHead>Targa</TableHead>
-              <TableHead>Tipo</TableHead>
-              <TableHead>Km</TableHead>
-              <TableHead>Costo</TableHead>
-              <TableHead>Officina</TableHead>
-              <TableHead>Descrizione</TableHead>
-              <TableHead>Operatore</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {interventions.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
-                  Nessun intervento
-                </TableCell>
-              </TableRow>
-            ) : (
-              interventions.map((m) => (
-                <TableRow key={m.id}>
-                  <TableCell>
-                    {m.date.toLocaleDateString("it-IT")}
-                  </TableCell>
-                  <TableCell>
-                    <Link
-                      href={`/mezzi/${m.vehicleId}`}
-                      className="font-mono font-semibold hover:underline"
-                    >
-                      {m.vehicle.plate}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">
-                      {maintenanceTypeLabels[m.type]}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="font-mono">
-                    {m.km.toLocaleString("it-IT")}
-                  </TableCell>
-                  <TableCell>
-                    {m.costEur ? `€${Number(m.costEur).toFixed(2)}` : "—"}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {m.garage || "—"}
-                  </TableCell>
-                  <TableCell className="max-w-xs truncate">
-                    {m.description}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {m.user.name}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
-    </div>
+    <InterventiList
+      interventions={items}
+      vehicles={vehicleOptions}
+      lastKmMap={lastKmMap}
+      plannedItems={plannedItems}
+      canManagePlanned={canManageDeadlines(user.role)}
+    />
   );
 }

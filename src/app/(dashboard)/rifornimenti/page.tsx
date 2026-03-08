@@ -1,15 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth-utils";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import Link from "next/link";
-import { fuelLabels } from "@/lib/labels";
+import { RifornimentiList, type RifornimentoItem, type VehicleOptionFuel } from "@/components/rifornimenti-list";
 
 export default async function RifornimentiPage() {
   const user = await getSessionUser();
@@ -17,79 +8,49 @@ export default async function RifornimentiPage() {
   const whereVehicle =
     user.role === "DRIVER" ? { assignedDriverId: user.id } : {};
 
-  const refuelings = await prisma.refueling.findMany({
-    where: { vehicle: whereVehicle },
-    include: { vehicle: true, user: true },
-    orderBy: { date: "desc" },
-    take: 100,
-  });
+  const [refuelings, vehicles] = await Promise.all([
+    prisma.refueling.findMany({
+      where: { vehicle: whereVehicle },
+      include: { vehicle: true, user: true },
+      orderBy: { date: "desc" },
+      take: 500,
+    }),
+    prisma.vehicle.findMany({
+      where: { ...whereVehicle, status: "ACTIVE" },
+      select: { id: true, plate: true, fuelType: true },
+      orderBy: { plate: "asc" },
+    }),
+  ]);
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Rifornimenti</h1>
-        <p className="text-muted-foreground">
-          Tutti i rifornimenti della flotta
-        </p>
-      </div>
+  const items: RifornimentoItem[] = refuelings.map((r) => ({
+    id: r.id,
+    date: r.date.toISOString(),
+    km: r.km,
+    liters: String(r.liters),
+    costEur: String(r.costEur),
+    fuelType: r.fuelType,
+    station: r.station,
+    vehicleId: r.vehicleId,
+    vehiclePlate: r.vehicle.plate,
+    userName: r.user.name,
+  }));
 
-      <div className="rounded-lg border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Data</TableHead>
-              <TableHead>Targa</TableHead>
-              <TableHead>Km</TableHead>
-              <TableHead>Litri</TableHead>
-              <TableHead>Costo</TableHead>
-              <TableHead>€/L</TableHead>
-              <TableHead>Carburante</TableHead>
-              <TableHead>Stazione</TableHead>
-              <TableHead>Operatore</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {refuelings.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
-                  Nessun rifornimento
-                </TableCell>
-              </TableRow>
-            ) : (
-              refuelings.map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell>
-                    {r.date.toLocaleDateString("it-IT")}
-                  </TableCell>
-                  <TableCell>
-                    <Link
-                      href={`/mezzi/${r.vehicleId}`}
-                      className="font-mono font-semibold hover:underline"
-                    >
-                      {r.vehicle.plate}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="font-mono">
-                    {r.km.toLocaleString("it-IT")}
-                  </TableCell>
-                  <TableCell>{Number(r.liters).toFixed(2)}</TableCell>
-                  <TableCell>€{Number(r.costEur).toFixed(2)}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    €{(Number(r.costEur) / Number(r.liters)).toFixed(3)}
-                  </TableCell>
-                  <TableCell>{fuelLabels[r.fuelType]}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {r.station || "—"}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {r.user.name}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
-    </div>
-  );
+  // Fetch latest km per vehicle for form validation
+  const lastKmMap: Record<string, number> = {};
+  for (const v of vehicles) {
+    const last = await prisma.mileageReading.findFirst({
+      where: { vehicleId: v.id },
+      orderBy: { km: "desc" },
+      select: { km: true },
+    });
+    if (last) lastKmMap[v.id] = last.km;
+  }
+
+  const vehicleOptions: VehicleOptionFuel[] = vehicles.map((v) => ({
+    id: v.id,
+    plate: v.plate,
+    fuelType: v.fuelType,
+  }));
+
+  return <RifornimentiList refuelings={items} vehicles={vehicleOptions} lastKmMap={lastKmMap} />;
 }

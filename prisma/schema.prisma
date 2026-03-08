@@ -80,6 +80,7 @@ model User {
   refuelings               Refueling[]
   maintenanceInterventions MaintenanceIntervention[]
   uploadedDocuments        Document[]
+  plannedMaintenances      PlannedMaintenance[]
 }
 
 model Vehicle {
@@ -106,6 +107,7 @@ model Vehicle {
   maintenanceInterventions MaintenanceIntervention[]
   deadlines                Deadline[]
   documents                Document[]
+  plannedMaintenances      PlannedMaintenance[]
 
   @@index([plate])
   @@index([status])
@@ -201,4 +203,30 @@ model Document {
 
   @@index([vehicleId])
   @@index([type])
+}
+
+enum PlannedMaintenanceStatus {
+  PLANNED
+  COMPLETED
+  CANCELLED
+}
+
+model PlannedMaintenance {
+  id          String                   @id @default(cuid())
+  vehicleId   String
+  vehicle     Vehicle                  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  createdById String
+  createdBy   User                     @relation(fields: [createdById], references: [id])
+  type        MaintenanceType
+  scheduledDate DateTime
+  description String
+  garage      String?
+  notes       String?
+  status      PlannedMaintenanceStatus @default(PLANNED)
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+
+  @@index([vehicleId])
+  @@index([scheduledDate])
+  @@index([status, scheduledDate])
 }

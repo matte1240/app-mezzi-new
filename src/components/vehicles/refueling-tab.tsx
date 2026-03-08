@@ -14,7 +14,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus } from "lucide-react";
+import { Plus, MoreHorizontal, Edit, Trash2 } from "lucide-react";
+import { RefuelingEditRow } from "./refueling-edit-row";
+import { deleteRecord } from "@/lib/actions/record-actions";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import React from "react";
 import { useState } from "react";
 
 
@@ -34,13 +38,22 @@ type RefuelingRecord = {
 export function RefuelingTab({
   vehicleId,
   vehicleFuelType,
+  lastKm = 0,
   refuelings,
 }: {
   vehicleId: string;
   vehicleFuelType: string;
+  lastKm?: number;
   refuelings: RefuelingRecord[];
 }) {
   const [showForm, setShowForm] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  async function handleDelete(id: string) {
+    if (confirm("Sei sicuro di voler eliminare questo rifornimento?")) {
+      await deleteRecord("refueling", id, vehicleId);
+    }
+  }
   const [state, formAction] = useActionState(createRefueling, undefined);
 
   return (
@@ -84,7 +97,10 @@ export function RefuelingTab({
             </div>
             <div className="space-y-2">
               <Label htmlFor="km">Km *</Label>
-              <Input id="km" name="km" type="number" required min={0} />
+              <Input id="km" name="km" type="number" required min={lastKm || 0} />
+              {lastKm > 0 && (
+                <p className="text-xs text-muted-foreground">Ultimo: {lastKm.toLocaleString("it-IT")} km</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="liters">Litri *</Label>
@@ -146,17 +162,22 @@ export function RefuelingTab({
               <TableHead>€/L</TableHead>
               <TableHead>Stazione</TableHead>
               <TableHead>Pieno</TableHead>
+              <TableHead className="text-right">Azioni</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {refuelings.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                   Nessun rifornimento
                 </TableCell>
               </TableRow>
             ) : (
-              refuelings.map((r) => (
+              refuelings.map((r) => {
+                if (expandedId === r.id) {
+                  return <RefuelingEditRow key={r.id} item={r} vehicleId={vehicleId} vehicleFuelType={vehicleFuelType} onCancel={() => setExpandedId(null)} />;
+                }
+                return (
                 <TableRow key={r.id}>
                   <TableCell>
                     {new Date(r.date).toLocaleDateString("it-IT")}
@@ -173,8 +194,26 @@ export function RefuelingTab({
                     {r.station || "—"}
                   </TableCell>
                   <TableCell>{r.fullTank ? "Sì" : "No"}</TableCell>
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger render={<Button variant="ghost" className="h-8 w-8 p-0" />}>
+<span className="sr-only">Apri menu</span>
+<MoreHorizontal className="h-4 w-4" />
+</DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => setExpandedId(r.id)}>
+                          <Edit className="mr-2 h-4 w-4" />
+                          <span>Modifica</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="text-red-600 focus:bg-red-50" onClick={() => handleDelete(r.id)}>
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          <span>Elimina</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
                 </TableRow>
-              ))
+              );})
             )}
           </TableBody>
         </Table>

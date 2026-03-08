@@ -15,7 +15,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus } from "lucide-react";
+import { Plus, MoreHorizontal, Edit, Trash2 } from "lucide-react";
+import { MileageEditRow } from "./mileage-edit-row";
+import { deleteRecord } from "@/lib/actions/record-actions";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import React from "react";
 import { useState } from "react";
 
 type Reading = {
@@ -34,12 +38,21 @@ const sourceLabels: Record<string, string> = {
 
 export function MileageTab({
   vehicleId,
+  lastKm = 0,
   readings,
 }: {
   vehicleId: string;
+  lastKm?: number;
   readings: Reading[];
 }) {
   const [showForm, setShowForm] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  async function handleDelete(id: string) {
+    if (confirm("Sei sicuro di voler eliminare questo rilevamento?")) {
+      await deleteRecord("mileage", id, vehicleId);
+    }
+  }
   const [state, formAction] = useActionState(createMileageReading, undefined);
 
   return (
@@ -73,7 +86,10 @@ export function MileageTab({
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-2">
               <Label htmlFor="km">Km *</Label>
-              <Input id="km" name="km" type="number" required min={0} />
+              <Input id="km" name="km" type="number" required min={lastKm || 0} />
+              {lastKm > 0 && (
+                <p className="text-xs text-muted-foreground">Ultimo: {lastKm.toLocaleString("it-IT")} km</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="date">Data *</Label>
@@ -104,17 +120,22 @@ export function MileageTab({
               <TableHead>Km</TableHead>
               <TableHead>Sorgente</TableHead>
               <TableHead>Note</TableHead>
+              <TableHead className="text-right">Azioni</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {readings.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                   Nessun rilevamento
                 </TableCell>
               </TableRow>
             ) : (
-              readings.map((r) => (
+              readings.map((r) => {
+                if (expandedId === r.id) {
+                  return <MileageEditRow key={r.id} item={r} vehicleId={vehicleId} onCancel={() => setExpandedId(null)} />;
+                }
+                return (
                 <TableRow key={r.id}>
                   <TableCell>
                     {new Date(r.date).toLocaleDateString("it-IT")}
@@ -128,8 +149,26 @@ export function MileageTab({
                   <TableCell className="text-muted-foreground">
                     {r.notes || "—"}
                   </TableCell>
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger render={<Button variant="ghost" className="h-8 w-8 p-0" />}>
+<span className="sr-only">Apri menu</span>
+<MoreHorizontal className="h-4 w-4" />
+</DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => setExpandedId(r.id)}>
+                          <Edit className="mr-2 h-4 w-4" />
+                          <span>Modifica</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="text-red-600 focus:bg-red-50" onClick={() => handleDelete(r.id)}>
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          <span>Elimina</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
                 </TableRow>
-              ))
+              );})
             )}
           </TableBody>
         </Table>

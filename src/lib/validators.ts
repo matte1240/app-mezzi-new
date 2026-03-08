@@ -96,3 +96,19 @@ export type RefuelingInput = z.infer<typeof refuelingSchema>;
 export type MaintenanceInput = z.infer<typeof maintenanceSchema>;
 export type DeadlineInput = z.infer<typeof deadlineSchema>;
 export type UserInput = z.infer<typeof userSchema>;
+
+export const plannedMaintenanceSchema = z.object({
+  vehicleId: z.string().min(1),
+  type: z.enum([
+    "TAGLIANDO",
+    "REVISIONE",
+    "RIPARAZIONE",
+    "CAMBIO_GOMME",
+    "ALTRO",
+  ]),
+  scheduledDate: z.coerce.date(),
+  description: z.string().min(1, "Descrizione obbligatoria"),
+  garage: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
+});
+export type PlannedMaintenanceInput = z.infer<typeof plannedMaintenanceSchema>;

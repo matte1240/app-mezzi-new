@@ -1,21 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth-utils";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import Link from "next/link";
-
-const sourceLabels: Record<string, string> = {
-  MANUAL: "Manuale",
-  REFUEL: "Rifornimento",
-  MAINTENANCE: "Intervento",
-};
+import { ChilometraggiList, type MileageItem, type VehicleOption } from "@/components/chilometraggi-list";
 
 export default async function ChilometraggiPage() {
   const user = await getSessionUser();
@@ -23,73 +8,46 @@ export default async function ChilometraggiPage() {
   const whereVehicle =
     user.role === "DRIVER" ? { assignedDriverId: user.id } : {};
 
-  const readings = await prisma.mileageReading.findMany({
-    where: { vehicle: whereVehicle },
-    include: { vehicle: true, recordedBy: true },
-    orderBy: { date: "desc" },
-    take: 100,
-  });
+  const [readings, vehicles] = await Promise.all([
+    prisma.mileageReading.findMany({
+      where: { vehicle: whereVehicle },
+      include: { vehicle: true, recordedBy: true },
+      orderBy: { date: "desc" },
+      take: 500,
+    }),
+    prisma.vehicle.findMany({
+      where: { ...whereVehicle, status: "ACTIVE" },
+      select: { id: true, plate: true },
+      orderBy: { plate: "asc" },
+    }),
+  ]);
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Chilometraggi</h1>
-        <p className="text-muted-foreground">
-          Tutti i rilevamenti chilometrici
-        </p>
-      </div>
+  // Fetch latest km per vehicle for form validation
+  const lastKmMap: Record<string, number> = {};
+  for (const v of vehicles) {
+    const last = await prisma.mileageReading.findFirst({
+      where: { vehicleId: v.id },
+      orderBy: { km: "desc" },
+      select: { km: true },
+    });
+    if (last) lastKmMap[v.id] = last.km;
+  }
 
-      <div className="rounded-lg border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Data</TableHead>
-              <TableHead>Targa</TableHead>
-              <TableHead>Km</TableHead>
-              <TableHead>Sorgente</TableHead>
-              <TableHead>Rilevato da</TableHead>
-              <TableHead>Note</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {readings.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                  Nessun rilevamento
-                </TableCell>
-              </TableRow>
-            ) : (
-              readings.map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell>
-                    {r.date.toLocaleDateString("it-IT")}
-                  </TableCell>
-                  <TableCell>
-                    <Link
-                      href={`/mezzi/${r.vehicleId}`}
-                      className="font-mono font-semibold hover:underline"
-                    >
-                      {r.vehicle.plate}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="font-mono">
-                    {r.km.toLocaleString("it-IT")}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{sourceLabels[r.source]}</Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {r.recordedBy.name}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {r.notes || "—"}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
-    </div>
-  );
+  const items: MileageItem[] = readings.map((r) => ({
+    id: r.id,
+    date: r.date.toISOString(),
+    km: r.km,
+    source: r.source,
+    notes: r.notes,
+    vehicleId: r.vehicleId,
+    vehiclePlate: r.vehicle.plate,
+    recordedByName: r.recordedBy.name,
+  }));
+
+  const vehicleOptions: VehicleOption[] = vehicles.map((v) => ({
+    id: v.id,
+    plate: v.plate,
+  }));
+
+  return <ChilometraggiList readings={items} vehicles={vehicleOptions} lastKmMap={lastKmMap} />;
 }

@@ -50,6 +50,18 @@ export const roleLabels: Record<string, string> = {
   DRIVER: "Autista",
 };
 
+export const plannedMaintenanceStatusLabels: Record<string, string> = {
+  PLANNED: "Pianificato",
+  COMPLETED: "Completato",
+  CANCELLED: "Annullato",
+};
+
+export const plannedMaintenanceStatusColors: Record<string, string> = {
+  PLANNED: "bg-blue-100 text-blue-800",
+  COMPLETED: "bg-green-100 text-green-800",
+  CANCELLED: "bg-gray-100 text-gray-800",
+};
+
 export const statusColors: Record<string, string> = {
   ACTIVE: "bg-green-100 text-green-800",
   INACTIVE: "bg-gray-100 text-gray-800",

@@ -117,3 +117,81 @@ export async function createMaintenance(
   revalidatePath("/chilometraggi");
   return { success: true };
 }
+
+export async function deleteRecord(type: 'mileage' | 'refueling' | 'maintenance', id: string, vehicleId: string) {
+  const user = await getSessionUser();
+  if (user.role !== "ADMIN" && user.role !== "FLEET_MANAGER") {
+    // maybe check if driver can delete
+  }
+  
+  if (type === 'mileage') {
+    await prisma.mileageReading.delete({ where: { id } });
+  } else if (type === 'refueling') {
+    await prisma.refueling.delete({ where: { id } });
+  } else if (type === 'maintenance') {
+    await prisma.maintenanceIntervention.delete({ where: { id } });
+  }
+
+  revalidatePath(`/mezzi/${vehicleId}`);
+  revalidatePath("/chilometraggi");
+  revalidatePath("/rifornimenti");
+  revalidatePath("/interventi");
+  return { success: true };
+}
+
+export async function updateMileageReading(
+  _prevState: { error?: string; success?: boolean } | undefined,
+  formData: FormData
+) {
+  const id = formData.get("id") as string;
+  const raw = Object.fromEntries(formData.entries());
+  const parsed = mileageSchema.safeParse(raw);
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+  await prisma.mileageReading.update({
+    where: { id },
+    data: parsed.data,
+  });
+
+  revalidatePath(`/mezzi/${parsed.data.vehicleId}`);
+  revalidatePath("/chilometraggi");
+  return { success: true };
+}
+
+export async function updateRefueling(
+  _prevState: { error?: string; success?: boolean } | undefined,
+  formData: FormData
+) {
+  const id = formData.get("id") as string;
+  const raw = Object.fromEntries(formData.entries());
+  const parsed = refuelingSchema.safeParse(raw);
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+  await prisma.refueling.update({
+    where: { id },
+    data: parsed.data,
+  });
+
+  revalidatePath(`/mezzi/${parsed.data.vehicleId}`);
+  revalidatePath("/rifornimenti");
+  return { success: true };
+}
+
+export async function updateMaintenance(
+  _prevState: { error?: string; success?: boolean } | undefined,
+  formData: FormData
+) {
+  const id = formData.get("id") as string;
+  const raw = Object.fromEntries(formData.entries());
+  const parsed = maintenanceSchema.safeParse(raw);
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+  await prisma.maintenanceIntervention.update({
+    where: { id },
+    data: parsed.data,
+  });
+
+  revalidatePath(`/mezzi/${parsed.data.vehicleId}`);
+  revalidatePath("/interventi");
+  return { success: true };
+}

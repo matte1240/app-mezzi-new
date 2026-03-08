@@ -16,7 +16,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus } from "lucide-react";
+import { Plus, MoreHorizontal, Edit, Trash2 } from "lucide-react";
+import { MaintenanceEditRow } from "./maintenance-edit-row";
+import { deleteRecord } from "@/lib/actions/record-actions";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import React from "react";
 import { useState } from "react";
 import { maintenanceTypeLabels } from "@/lib/labels";
 
@@ -34,12 +38,21 @@ type MaintenanceRecord = {
 
 export function MaintenanceTab({
   vehicleId,
+  lastKm = 0,
   interventions,
 }: {
   vehicleId: string;
+  lastKm?: number;
   interventions: MaintenanceRecord[];
 }) {
   const [showForm, setShowForm] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  async function handleDelete(id: string) {
+    if (confirm("Sei sicuro di voler eliminare questo intervento?")) {
+      await deleteRecord("maintenance", id, vehicleId);
+    }
+  }
   const [state, formAction] = useActionState(createMaintenance, undefined);
 
   return (
@@ -97,7 +110,10 @@ export function MaintenanceTab({
             </div>
             <div className="space-y-2">
               <Label htmlFor="km">Km *</Label>
-              <Input id="km" name="km" type="number" required min={0} />
+              <Input id="km" name="km" type="number" required min={lastKm || 0} />
+              {lastKm > 0 && (
+                <p className="text-xs text-muted-foreground">Ultimo: {lastKm.toLocaleString("it-IT")} km</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="costEur">Costo €</Label>
@@ -140,23 +156,29 @@ export function MaintenanceTab({
               <TableHead>Costo</TableHead>
               <TableHead>Officina</TableHead>
               <TableHead>Descrizione</TableHead>
+              <TableHead className="text-right">Azioni</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {interventions.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                   Nessun intervento
                 </TableCell>
               </TableRow>
             ) : (
-              interventions.map((m) => (
+              interventions.map((m) => {
+                if (expandedId === m.id) {
+                  return <MaintenanceEditRow key={m.id} item={m} vehicleId={vehicleId} onCancel={() => setExpandedId(null)} />;
+                }
+                return (
                 <TableRow key={m.id}>
                   <TableCell>
                     {new Date(m.date).toLocaleDateString("it-IT")}
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline">
+                      {/* @ts-ignore */}
                       {maintenanceTypeLabels[m.type]}
                     </Badge>
                   </TableCell>
@@ -172,8 +194,26 @@ export function MaintenanceTab({
                   <TableCell className="max-w-xs truncate">
                     {m.description}
                   </TableCell>
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger render={<Button variant="ghost" className="h-8 w-8 p-0" />}>
+<span className="sr-only">Apri menu</span>
+<MoreHorizontal className="h-4 w-4" />
+</DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => setExpandedId(m.id)}>
+                          <Edit className="mr-2 h-4 w-4" />
+                          <span>Modifica</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="text-red-600 focus:bg-red-50" onClick={() => handleDelete(m.id)}>
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          <span>Elimina</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
                 </TableRow>
-              ))
+              );})
             )}
           </TableBody>
         </Table>
