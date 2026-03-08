@@ -7,6 +7,7 @@ export default auth((req) => {
   // Public routes
   if (
     pathname.startsWith("/login") ||
+    pathname.startsWith("/setup") ||
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/cron")
   ) {
