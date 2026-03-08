@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { checkNeedsSetup } from "@/lib/actions/setup-actions";
 import { SetupForm } from "./setup-form";
 
+export const dynamic = "force-dynamic";
+
 export default async function SetupPage() {
   const needsSetup = await checkNeedsSetup();
   if (!needsSetup) {
