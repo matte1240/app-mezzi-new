@@ -42,6 +42,8 @@ export async function createVehicle(
   await generateAutoDeadlines(vehicle.id);
 
   revalidatePath("/mezzi");
+  revalidatePath("/scadenze");
+  revalidatePath("/");
   redirect(`/mezzi/${vehicle.id}`);
 }
 
@@ -83,6 +85,8 @@ export async function updateVehicle(
 
   revalidatePath("/mezzi");
   revalidatePath(`/mezzi/${vehicleId}`);
+  revalidatePath("/scadenze");
+  revalidatePath("/");
   redirect(`/mezzi/${vehicleId}`);
 }
 

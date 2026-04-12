@@ -7,7 +7,10 @@ type DocumentWithAnomaly = {
   name: string;
   type: string;
   sizeBytes: number;
+  notes: string | null;
   createdAt: Date;
+  validFrom: Date | null;
+  validTo: Date | null;
   vehicleId: string;
   vehicle: {
     plate: string;
@@ -67,7 +70,10 @@ export default async function DocumentiPage() {
     name: d.name,
     type: d.type,
     sizeBytes: d.sizeBytes,
+    notes: d.notes,
     createdAt: d.createdAt.toISOString(),
+    validFrom: d.validFrom ? d.validFrom.toISOString() : null,
+    validTo: d.validTo ? d.validTo.toISOString() : null,
     vehicleId: d.vehicleId,
     vehiclePlate: d.vehicle.plate,
     vehicleBrand: d.vehicle.brand,

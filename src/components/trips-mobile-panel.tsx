@@ -5,7 +5,6 @@ import { startTrip, stopTrip } from "@/lib/actions/trip-actions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { TriangleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -221,13 +220,6 @@ export function TripsMobilePanel({
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Note</label>
                 <Input name="notes" placeholder="Destinazione, carico, ecc." />
-              </div>
-
-              <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                <span>Identificativo ingresso</span>
-                <Badge variant="outline">
-                  {entryToken !== "manual-entry" ? "Acquisito" : "Manuale"}
-                </Badge>
               </div>
 
               <SubmitButton pendingText="Avvio..." className="w-full">

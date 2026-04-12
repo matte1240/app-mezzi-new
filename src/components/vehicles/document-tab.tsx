@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Upload, Download, Trash2, FileText, Camera } from "lucide-react";
+import { Upload, Download, Trash2, FileText, Camera, Pencil } from "lucide-react";
 import { useState } from "react";
 import {
   documentTypeLabels,
@@ -21,6 +21,14 @@ import {
   tripAnomalyTypeLabels,
 } from "@/lib/labels";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type DocumentRecord = {
   id: string;
@@ -30,12 +38,33 @@ type DocumentRecord = {
   sizeBytes: number;
   notes: string | null;
   createdAt: string;
+  validFrom: string | null;
+  validTo: string | null;
   uploadedByName: string;
   tripAnomalyId: string | null;
   tripAnomalyType: string | null;
   tripAnomalyStatus: string | null;
   tripId: string | null;
 };
+
+function requiresValidityPeriod(documentType: string) {
+  return documentType === "ASSICURAZIONE" || documentType === "CONTRATTO_NOLEGGIO";
+}
+
+function formatValidityPeriod(validFrom: string | null, validTo: string | null) {
+  if (!validFrom && !validTo) return "—";
+  if (validFrom && validTo) {
+    return `${new Date(validFrom).toLocaleDateString("it-IT")} - ${new Date(validTo).toLocaleDateString("it-IT")}`;
+  }
+  if (validTo) {
+    return `Fino al ${new Date(validTo).toLocaleDateString("it-IT")}`;
+  }
+  return `Dal ${new Date(validFrom!).toLocaleDateString("it-IT")}`;
+}
+
+function toDateInputValue(value: string | null) {
+  return value ? value.slice(0, 10) : "";
+}
 
 export function DocumentTab({
   vehicleId,
@@ -48,6 +77,10 @@ export function DocumentTab({
 }) {
   const [showForm, setShowForm] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadType, setUploadType] = useState("CONTRATTO_NOLEGGIO");
+  const [editingDoc, setEditingDoc] = useState<DocumentRecord | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editError, setEditError] = useState("");
 
   async function handleUpload(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -120,10 +153,12 @@ export function DocumentTab({
               <label className="text-sm font-medium">Tipo *</label>
               <select
                 name="type"
+                value={uploadType}
+                onChange={(e) => setUploadType(e.target.value)}
                 className="w-full rounded-md border bg-background px-3 py-2 text-sm"
                 required
               >
-                <option value="CONTRATTO_NOLEGGIO">Contratto noleggio</option>
+                <option value="CONTRATTO_NOLEGGIO">Contratto noleggio/leasing</option>
                 <option value="ASSICURAZIONE">Assicurazione</option>
                 <option value="LIBRETTO">Libretto</option>
                 <option value="CARTA_CIRCOLAZIONE">Carta di circolazione</option>
@@ -134,7 +169,22 @@ export function DocumentTab({
               <label className="text-sm font-medium">Note</label>
               <Input name="notes" />
             </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Validita da</label>
+              <Input name="validFrom" type="date" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Validita fino a {requiresValidityPeriod(uploadType) ? "*" : ""}</label>
+              <Input
+                name="validTo"
+                type="date"
+                required={requiresValidityPeriod(uploadType)}
+              />
+            </div>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Per assicurazione e contratto noleggio/leasing e obbligatoria la data di fine validita.
+          </p>
           <div className="space-y-2">
             <label className="text-sm font-medium">File PDF *</label>
             <Input type="file" name="file" accept=".pdf" required />
@@ -154,13 +204,14 @@ export function DocumentTab({
               <TableHead>Dimensione</TableHead>
               <TableHead>Caricato da</TableHead>
               <TableHead>Data</TableHead>
+              <TableHead>Validita</TableHead>
               <TableHead>Azioni</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {standardDocuments.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                   Nessun documento standard
                 </TableCell>
               </TableRow>
@@ -185,6 +236,9 @@ export function DocumentTab({
                   <TableCell className="text-muted-foreground">
                     {new Date(d.createdAt).toLocaleDateString("it-IT")}
                   </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {formatValidityPeriod(d.validFrom, d.validTo)}
+                  </TableCell>
                   <TableCell>
                     <div className="flex gap-1">
                       <a href={`/api/documents/${d.id}/download`} target="_blank" rel="noopener noreferrer">
@@ -192,6 +246,21 @@ export function DocumentTab({
                           <Download className="h-4 w-4" />
                         </Button>
                       </a>
+                      {canUpload && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          title="Modifica"
+                          onClick={() => {
+                            setEditError("");
+                            setEditingDoc(d);
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      )}
                       {canUpload && (
                         <Button
                           variant="ghost"
@@ -295,6 +364,101 @@ export function DocumentTab({
           </div>
         </div>
       )}
+
+      <Dialog
+        open={!!editingDoc}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingDoc(null);
+            setEditing(false);
+            setEditError("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Modifica documento</DialogTitle>
+            <DialogDescription>
+              Aggiorna validita e note. La scadenza automatica viene riallineata in base alla data di fine validita.
+            </DialogDescription>
+          </DialogHeader>
+
+          {editingDoc ? (
+            <form
+              key={editingDoc.id}
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setEditing(true);
+                setEditError("");
+                const formData = new FormData(e.currentTarget);
+
+                try {
+                  const res = await fetch(`/api/documents/${editingDoc.id}`, {
+                    method: "PATCH",
+                    body: formData,
+                  });
+                  const data = await res.json();
+                  if (!res.ok) {
+                    setEditError(data.error || "Errore aggiornamento documento");
+                  } else {
+                    toast.success("Documento aggiornato");
+                    setEditingDoc(null);
+                    window.location.reload();
+                  }
+                } catch {
+                  setEditError("Errore di rete");
+                } finally {
+                  setEditing(false);
+                }
+              }}
+              className="space-y-4"
+            >
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Documento</label>
+                <p className="text-sm text-muted-foreground break-all">{editingDoc.name}</p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Validita da</label>
+                  <Input
+                    name="validFrom"
+                    type="date"
+                    defaultValue={toDateInputValue(editingDoc.validFrom)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">
+                    Validita fino a {requiresValidityPeriod(editingDoc.type) ? "*" : ""}
+                  </label>
+                  <Input
+                    name="validTo"
+                    type="date"
+                    defaultValue={toDateInputValue(editingDoc.validTo)}
+                    required={requiresValidityPeriod(editingDoc.type)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Note</label>
+                <Input name="notes" defaultValue={editingDoc.notes || ""} />
+              </div>
+
+              {editError && <p className="text-sm text-destructive">{editError}</p>}
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setEditingDoc(null)}>
+                  Annulla
+                </Button>
+                <Button type="submit" disabled={editing}>
+                  {editing ? "Salvataggio..." : "Salva"}
+                </Button>
+              </DialogFooter>
+            </form>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

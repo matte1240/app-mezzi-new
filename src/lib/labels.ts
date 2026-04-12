@@ -37,7 +37,7 @@ export const deadlineTypeLabels: Record<string, string> = {
 };
 
 export const documentTypeLabels: Record<string, string> = {
-  CONTRATTO_NOLEGGIO: "Contratto noleggio",
+  CONTRATTO_NOLEGGIO: "Contratto noleggio/leasing",
   ASSICURAZIONE: "Assicurazione",
   LIBRETTO: "Libretto",
   CARTA_CIRCOLAZIONE: "Carta di circolazione",

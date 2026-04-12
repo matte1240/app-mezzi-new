@@ -236,6 +236,8 @@ export default async function VehicleDetailPage({
             documents={vehicle.documents.map((d) => ({
               ...d,
               createdAt: d.createdAt.toISOString(),
+              validFrom: d.validFrom?.toISOString() || null,
+              validTo: d.validTo?.toISOString() || null,
               uploadedByName: d.uploadedBy.name,
               tripAnomalyType: d.tripAnomaly?.type ?? null,
               tripAnomalyStatus: d.tripAnomaly?.status ?? null,

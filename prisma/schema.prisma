@@ -196,6 +196,8 @@ model Deadline {
   id            String       @id @default(cuid())
   vehicleId     String
   vehicle       Vehicle      @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  sourceDocumentId String?
+  sourceDocument Document?   @relation("DocumentGeneratedDeadlines", fields: [sourceDocumentId], references: [id], onDelete: SetNull)
   type          DeadlineType
   dueDate       DateTime
   dueKm         Int?
@@ -208,6 +210,7 @@ model Deadline {
   updatedAt     DateTime     @updatedAt
 
   @@index([vehicleId])
+  @@index([sourceDocumentId])
   @@index([dueDate])
   @@index([completed, dueDate])
 }
@@ -226,7 +229,11 @@ model Document {
   mimeType         String
   sizeBytes        Int
   notes            String?
+  validFrom        DateTime?
+  validTo          DateTime?
   createdAt        DateTime     @default(now())
+
+  generatedDeadlines Deadline[] @relation("DocumentGeneratedDeadlines")
 
   @@index([vehicleId])
   @@index([type])

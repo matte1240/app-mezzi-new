@@ -32,15 +32,7 @@ function formatBytes(bytes: number) {
 }
 
 function canPreviewImage(mimeType: string) {
-  const normalized = mimeType.toLowerCase();
-  return (
-    normalized === "image/jpeg" ||
-    normalized === "image/png" ||
-    normalized === "image/webp" ||
-    normalized === "image/gif" ||
-    normalized === "image/avif" ||
-    normalized === "image/svg+xml"
-  );
+  return mimeType.toLowerCase().startsWith("image/");
 }
 
 type AnomalyDetailPayload = {
@@ -270,7 +262,7 @@ export default async function SegnalazioneDetailPage({
                       <div className="relative aspect-video w-full bg-muted/40">
                         {canPreviewImage(photo.mimeType) ? (
                           <Image
-                            src={`/api/documents/${photo.id}/download`}
+                            src={`/api/documents/${photo.id}/download?variant=thumb`}
                             alt={photo.name}
                             fill
                             unoptimized

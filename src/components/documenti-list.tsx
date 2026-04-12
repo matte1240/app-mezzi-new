@@ -17,6 +17,7 @@ import {
   Camera,
   Download,
   FileText,
+  Pencil,
   Search,
   Truck,
   ChevronDown,
@@ -26,13 +27,24 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export type DocItem = {
   id: string;
   name: string;
   type: string;
   sizeBytes: number;
+  notes: string | null;
   createdAt: string;
+  validFrom: string | null;
+  validTo: string | null;
   vehicleId: string;
   vehiclePlate: string;
   vehicleBrand: string;
@@ -66,12 +78,35 @@ function isAnomalyPhoto(doc: DocItem) {
   return !!doc.tripAnomalyId;
 }
 
+function requiresValidityPeriod(documentType: string) {
+  return documentType === "ASSICURAZIONE" || documentType === "CONTRATTO_NOLEGGIO";
+}
+
+function formatValidityPeriod(validFrom: string | null, validTo: string | null) {
+  if (!validFrom && !validTo) return "—";
+  if (validFrom && validTo) {
+    return `${new Date(validFrom).toLocaleDateString("it-IT")} - ${new Date(validTo).toLocaleDateString("it-IT")}`;
+  }
+  if (validTo) {
+    return `Fino al ${new Date(validTo).toLocaleDateString("it-IT")}`;
+  }
+  return `Dal ${new Date(validFrom!).toLocaleDateString("it-IT")}`;
+}
+
+function toDateInputValue(value: string | null) {
+  return value ? value.slice(0, 10) : "";
+}
+
 export function DocumentiList({ documents, vehicles = [], canUpload = false }: { documents: DocItem[]; vehicles?: VehicleOption[]; canUpload?: boolean }) {
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [openVehicles, setOpenVehicles] = useState<Set<string>>(new Set());
   const [showForm, setShowForm] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadType, setUploadType] = useState("CONTRATTO_NOLEGGIO");
+  const [editingDoc, setEditingDoc] = useState<DocItem | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editError, setEditError] = useState("");
   const [uploadMsg, setUploadMsg] = useState<{ error?: string; success?: string }>({});
   const router = useRouter();
 
@@ -188,6 +223,7 @@ export function DocumentiList({ documents, vehicles = [], canUpload = false }: {
                   } else {
                     setUploadMsg({ success: "Documento caricato!" });
                     (e.target as HTMLFormElement).reset();
+                    setUploadType("CONTRATTO_NOLEGGIO");
                     router.refresh();
                   }
                 } catch {
@@ -209,7 +245,13 @@ export function DocumentiList({ documents, vehicles = [], canUpload = false }: {
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Tipo *</label>
-                <select name="type" required className="w-full rounded-md border bg-background px-3 py-2 text-sm">
+                <select
+                  name="type"
+                  required
+                  value={uploadType}
+                  onChange={(e) => setUploadType(e.target.value)}
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                >
                   {allDocTypes.map(([value, label]) => (
                     <option key={value} value={value}>{label}</option>
                   ))}
@@ -222,6 +264,22 @@ export function DocumentiList({ documents, vehicles = [], canUpload = false }: {
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Note</label>
                 <input type="text" name="notes" className="w-full rounded-md border bg-background px-3 py-2 text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Validita da</label>
+                <input type="date" name="validFrom" className="w-full rounded-md border bg-background px-3 py-2 text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Validita fino a {requiresValidityPeriod(uploadType) ? "*" : ""}</label>
+                <input
+                  type="date"
+                  name="validTo"
+                  required={requiresValidityPeriod(uploadType)}
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                />
+              </div>
+              <div className="sm:col-span-2 lg:col-span-4 text-xs text-muted-foreground">
+                Per assicurazione e contratto noleggio/leasing e richiesta la data di fine validita per creare la scadenza automatica.
               </div>
               <div className="sm:col-span-2 lg:col-span-4 flex items-center gap-3">
                 <Button type="submit" disabled={uploading}>
@@ -320,13 +378,14 @@ export function DocumentiList({ documents, vehicles = [], canUpload = false }: {
                               <TableHead>Dimensione</TableHead>
                               <TableHead>Caricato da</TableHead>
                               <TableHead>Data</TableHead>
-                              <TableHead className="w-12">Scarica</TableHead>
+                              <TableHead>Validita</TableHead>
+                              <TableHead className="w-24">Azioni</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {group.docs.length === 0 ? (
                               <TableRow>
-                                <TableCell colSpan={6} className="py-6 text-center text-sm text-muted-foreground">
+                                <TableCell colSpan={7} className="py-6 text-center text-sm text-muted-foreground">
                                   Nessun documento standard
                                 </TableCell>
                               </TableRow>
@@ -353,12 +412,31 @@ export function DocumentiList({ documents, vehicles = [], canUpload = false }: {
                                   <TableCell className="text-muted-foreground">
                                     {new Date(d.createdAt).toLocaleDateString("it-IT")}
                                   </TableCell>
+                                  <TableCell className="text-muted-foreground">
+                                    {formatValidityPeriod(d.validFrom, d.validTo)}
+                                  </TableCell>
                                   <TableCell>
-                                    <a href={`/api/documents/${d.id}/download`} target="_blank" rel="noopener noreferrer">
-                                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                                        <Download className="h-4 w-4" />
-                                      </Button>
-                                    </a>
+                                    <div className="flex items-center gap-1">
+                                      <a href={`/api/documents/${d.id}/download`} target="_blank" rel="noopener noreferrer">
+                                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                                          <Download className="h-4 w-4" />
+                                        </Button>
+                                      </a>
+                                      {canUpload && (
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-8 w-8"
+                                          onClick={() => {
+                                            setEditError("");
+                                            setEditingDoc(d);
+                                          }}
+                                        >
+                                          <Pencil className="h-4 w-4" />
+                                        </Button>
+                                      )}
+                                    </div>
                                   </TableCell>
                                 </TableRow>
                               ))
@@ -447,6 +525,106 @@ export function DocumentiList({ documents, vehicles = [], canUpload = false }: {
           })}
         </div>
       )}
+
+      <Dialog
+        open={!!editingDoc}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingDoc(null);
+            setEditing(false);
+            setEditError("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Modifica documento</DialogTitle>
+            <DialogDescription>
+              Aggiorna validita e note. La scadenza automatica viene riallineata in base alla data di fine validita.
+            </DialogDescription>
+          </DialogHeader>
+
+          {editingDoc ? (
+            <form
+              key={editingDoc.id}
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setEditing(true);
+                setEditError("");
+                const formData = new FormData(e.currentTarget);
+                try {
+                  const res = await fetch(`/api/documents/${editingDoc.id}`, {
+                    method: "PATCH",
+                    body: formData,
+                  });
+                  const data = await res.json();
+                  if (!res.ok) {
+                    setEditError(data.error || "Errore aggiornamento documento");
+                  } else {
+                    setEditingDoc(null);
+                    router.refresh();
+                  }
+                } catch {
+                  setEditError("Errore di rete");
+                } finally {
+                  setEditing(false);
+                }
+              }}
+              className="space-y-4"
+            >
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Documento</label>
+                <p className="text-sm text-muted-foreground break-all">{editingDoc.name}</p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Validita da</label>
+                  <input
+                    type="date"
+                    name="validFrom"
+                    defaultValue={toDateInputValue(editingDoc.validFrom)}
+                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">
+                    Validita fino a {requiresValidityPeriod(editingDoc.type) ? "*" : ""}
+                  </label>
+                  <input
+                    type="date"
+                    name="validTo"
+                    defaultValue={toDateInputValue(editingDoc.validTo)}
+                    required={requiresValidityPeriod(editingDoc.type)}
+                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Note</label>
+                <input
+                  type="text"
+                  name="notes"
+                  defaultValue={editingDoc.notes || ""}
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                />
+              </div>
+
+              {editError && <p className="text-sm text-destructive">{editError}</p>}
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setEditingDoc(null)}>
+                  Annulla
+                </Button>
+                <Button type="submit" disabled={editing}>
+                  {editing ? "Salvataggio..." : "Salva"}
+                </Button>
+              </DialogFooter>
+            </form>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

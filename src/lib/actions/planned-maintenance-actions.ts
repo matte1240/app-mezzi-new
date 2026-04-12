@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSessionUser, canManageDeadlines } from "@/lib/auth-utils";
 import { plannedMaintenanceSchema, maintenanceSchema } from "@/lib/validators";
+import { syncRevisioneDeadline, syncTagliandoDeadline } from "@/lib/auto-deadlines";
 import { revalidatePath } from "next/cache";
 
 export async function createPlannedMaintenance(
@@ -154,7 +155,22 @@ export async function completePlannedMaintenance(
     }),
   ]);
 
+  if (parsed.data.type === "TAGLIANDO") {
+    await syncTagliandoDeadline(parsed.data.vehicleId, {
+      performedAt: parsed.data.date,
+      performedKm: parsed.data.km,
+      completeExistingAuto: true,
+    });
+  } else if (parsed.data.type === "REVISIONE") {
+    await syncRevisioneDeadline(parsed.data.vehicleId, {
+      performedAt: parsed.data.date,
+      completeExistingAuto: true,
+    });
+  }
+
   revalidatePath("/interventi");
   revalidatePath(`/mezzi/${parsed.data.vehicleId}`);
+  revalidatePath("/scadenze");
+  revalidatePath("/");
   return { success: true };
 }

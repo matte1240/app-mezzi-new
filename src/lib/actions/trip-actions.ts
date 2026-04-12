@@ -3,23 +3,18 @@
 import { prisma } from "@/lib/prisma";
 import { canRecordTrips, getSessionUser } from "@/lib/auth-utils";
 import { tripStartSchema, tripStopSchema } from "@/lib/validators";
+import {
+  buildTripAnomalyPhotoStorage,
+  createTripAnomalyThumbnail,
+  resolveUploadDir,
+} from "@/lib/file-storage";
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { mkdir, writeFile } from "fs/promises";
-import { extname, join } from "path";
-import { randomUUID } from "crypto";
 
 const MAX_ANOMALY_PHOTO_SIZE = 8 * 1024 * 1024;
 const MAX_ANOMALY_PHOTOS = 5;
 const ALLOWED_PHOTO_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]);
-
-function resolveUploadDir() {
-  const configured = process.env.UPLOAD_DIR || "./uploads";
-  if (process.env.NODE_ENV === "development" && configured.startsWith("/app/")) {
-    return "./uploads";
-  }
-  return configured;
-}
 
 function extractVehicleIdFromQr(raw: string): string | null {
   const value = raw.trim();
@@ -258,6 +253,7 @@ export async function stopTrip(
 
   let anomalyCount = 0;
   let tripVehicleId = "";
+  let tripVehiclePlate = "";
   let closedTripId = "";
   let anomalyIdForPhotos = "";
 
@@ -274,7 +270,8 @@ export async function stopTrip(
         }
 
         tripVehicleId = trip.vehicleId;
-  closedTripId = trip.id;
+    tripVehiclePlate = trip.vehicle.plate;
+    closedTripId = trip.id;
 
         if (user.role === "DRIVER" && trip.driverId !== user.id) {
           throw new Error("NOT_OWNER");
@@ -395,19 +392,34 @@ export async function stopTrip(
 
   if (anomalyPhotos.length > 0 && tripVehicleId && closedTripId) {
     try {
-      const uploadDir = resolveUploadDir();
-      const tripPhotoDir = join(uploadDir, tripVehicleId, "trip-anomalies");
-      await mkdir(tripPhotoDir, { recursive: true });
+      for (const [index, photo] of anomalyPhotos.entries()) {
+        const storage = buildTripAnomalyPhotoStorage({
+          vehicleId: tripVehicleId,
+          vehiclePlate: tripVehiclePlate,
+          tripId: closedTripId,
+          anomalyId: anomalyIdForPhotos || "manual",
+          originalFileName: photo.name || "foto-anomalia",
+          mimeType: photo.type,
+          index,
+        });
 
-      for (const photo of anomalyPhotos) {
-        const originalExt = extname(photo.name || "").toLowerCase();
-        const fallbackExt = photo.type === "image/png" ? ".png" : photo.type === "image/webp" ? ".webp" : ".jpg";
-        const fileExt = originalExt || fallbackExt;
-        const fileName = `${closedTripId}-${randomUUID()}${fileExt}`;
-        const filePath = join(tripPhotoDir, fileName);
+        await mkdir(storage.originalDir, { recursive: true });
+        await mkdir(storage.thumbnailDir, { recursive: true });
 
         const bytes = await photo.arrayBuffer();
-        await writeFile(filePath, Buffer.from(bytes));
+        await writeFile(storage.filePath, Buffer.from(bytes));
+
+        try {
+          await createTripAnomalyThumbnail(storage.filePath, storage.thumbnailPath);
+        } catch (thumbnailError) {
+          console.warn("Trip photo thumbnail generation failed", {
+            tripId: closedTripId,
+            anomalyId: anomalyIdForPhotos,
+            photoPath: storage.filePath,
+            thumbnailPath: storage.thumbnailPath,
+            thumbnailError,
+          });
+        }
 
         await prisma.document.create({
           data: {
@@ -415,8 +427,8 @@ export async function stopTrip(
             tripAnomalyId: anomalyIdForPhotos || null,
             uploadedByUserId: user.id,
             type: "ALTRO",
-            name: photo.name || fileName,
-            filePath,
+            name: photo.name || storage.fileName,
+            filePath: storage.filePath,
             mimeType: photo.type,
             sizeBytes: photo.size,
             notes: anomalyIdForPhotos

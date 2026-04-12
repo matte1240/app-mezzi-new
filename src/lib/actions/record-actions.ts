@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { canManageVehicles, getSessionUser } from "@/lib/auth-utils";
 import { mileageSchema, refuelingSchema, maintenanceSchema } from "@/lib/validators";
+import { syncRevisioneDeadline, syncTagliandoDeadline } from "@/lib/auto-deadlines";
 import { revalidatePath } from "next/cache";
 
 async function validateKm(vehicleId: string, newKm: number) {
@@ -112,9 +113,24 @@ export async function createMaintenance(
     }),
   ]);
 
+  if (parsed.data.type === "TAGLIANDO") {
+    await syncTagliandoDeadline(parsed.data.vehicleId, {
+      performedAt: parsed.data.date,
+      performedKm: parsed.data.km,
+      completeExistingAuto: true,
+    });
+  } else if (parsed.data.type === "REVISIONE") {
+    await syncRevisioneDeadline(parsed.data.vehicleId, {
+      performedAt: parsed.data.date,
+      completeExistingAuto: true,
+    });
+  }
+
   revalidatePath(`/mezzi/${parsed.data.vehicleId}`);
   revalidatePath("/interventi");
   revalidatePath("/chilometraggi");
+  revalidatePath("/scadenze");
+  revalidatePath("/");
   return { success: true };
 }
 
@@ -129,13 +145,26 @@ export async function deleteRecord(type: 'mileage' | 'refueling' | 'maintenance'
   } else if (type === 'refueling') {
     await prisma.refueling.delete({ where: { id } });
   } else if (type === 'maintenance') {
+    const existingMaintenance = await prisma.maintenanceIntervention.findUnique({
+      where: { id },
+      select: { type: true },
+    });
+
     await prisma.maintenanceIntervention.delete({ where: { id } });
+
+    if (existingMaintenance?.type === "TAGLIANDO") {
+      await syncTagliandoDeadline(vehicleId, { completeExistingAuto: false });
+    } else if (existingMaintenance?.type === "REVISIONE") {
+      await syncRevisioneDeadline(vehicleId, { completeExistingAuto: false });
+    }
   }
 
   revalidatePath(`/mezzi/${vehicleId}`);
   revalidatePath("/chilometraggi");
   revalidatePath("/rifornimenti");
   revalidatePath("/interventi");
+  revalidatePath("/scadenze");
+  revalidatePath("/");
   return { success: true };
 }
 
@@ -206,7 +235,22 @@ export async function updateMaintenance(
     data: parsed.data,
   });
 
+  if (parsed.data.type === "TAGLIANDO") {
+    await syncTagliandoDeadline(parsed.data.vehicleId, {
+      performedAt: parsed.data.date,
+      performedKm: parsed.data.km,
+      completeExistingAuto: false,
+    });
+  } else if (parsed.data.type === "REVISIONE") {
+    await syncRevisioneDeadline(parsed.data.vehicleId, {
+      performedAt: parsed.data.date,
+      completeExistingAuto: false,
+    });
+  }
+
   revalidatePath(`/mezzi/${parsed.data.vehicleId}`);
   revalidatePath("/interventi");
+  revalidatePath("/scadenze");
+  revalidatePath("/");
   return { success: true };
 }

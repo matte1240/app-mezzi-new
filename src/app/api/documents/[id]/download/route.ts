@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { readFile } from "fs/promises";
+import { deriveTripAnomalyThumbnailPath } from "@/lib/file-storage";
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
@@ -29,6 +30,26 @@ export async function GET(
     document.vehicle.assignedDriverId !== session.user.id
   ) {
     return NextResponse.json({ error: "Non autorizzato" }, { status: 403 });
+  }
+
+  const variant = request.nextUrl.searchParams.get("variant");
+
+  if (variant === "thumb") {
+    const thumbnailPath = deriveTripAnomalyThumbnailPath(document.filePath);
+    if (thumbnailPath) {
+      try {
+        const thumbnailBuffer = await readFile(thumbnailPath);
+        return new NextResponse(thumbnailBuffer, {
+          headers: {
+            "Content-Type": "image/webp",
+            "Content-Disposition": `inline; filename="thumb-${document.name}"`,
+            "Content-Length": String(thumbnailBuffer.length),
+          },
+        });
+      } catch {
+        // Fallback to original file when thumbnail is missing.
+      }
+    }
   }
 
   try {
