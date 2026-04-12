@@ -7,8 +7,23 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { documentTypeLabels } from "@/lib/labels";
-import { Download, FileText, Search, Truck, ChevronDown, ChevronRight, ChevronUp, Upload } from "lucide-react";
+import {
+  documentTypeLabels,
+  tripAnomalyStatusColors,
+  tripAnomalyStatusLabels,
+  tripAnomalyTypeLabels,
+} from "@/lib/labels";
+import {
+  Camera,
+  Download,
+  FileText,
+  Search,
+  Truck,
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  Upload,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -23,6 +38,10 @@ export type DocItem = {
   vehicleBrand: string;
   vehicleModel: string;
   uploadedByName: string;
+  tripAnomalyId: string | null;
+  tripAnomalyType: string | null;
+  tripAnomalyStatus: string | null;
+  tripId: string | null;
 };
 
 export type VehicleOption = {
@@ -37,6 +56,15 @@ function formatSize(bytes: number) {
 }
 
 const allDocTypes = Object.entries(documentTypeLabels);
+const filterTypes: Array<{ value: string; label: string }> = [
+  { value: "", label: "Tutti i tipi" },
+  ...allDocTypes.map(([value, label]) => ({ value, label })),
+  { value: "ANOMALY_PHOTO", label: "Foto Anomalie" },
+];
+
+function isAnomalyPhoto(doc: DocItem) {
+  return !!doc.tripAnomalyId;
+}
 
 export function DocumentiList({ documents, vehicles = [], canUpload = false }: { documents: DocItem[]; vehicles?: VehicleOption[]; canUpload?: boolean }) {
   const [query, setQuery] = useState("");
@@ -59,12 +87,22 @@ export function DocumentiList({ documents, vehicles = [], canUpload = false }: {
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim();
     return documents.filter((d) => {
-      if (typeFilter && d.type !== typeFilter) return false;
+      const anomalyPhoto = isAnomalyPhoto(d);
+
+      if (typeFilter === "ANOMALY_PHOTO" && !anomalyPhoto) return false;
+      if (typeFilter && typeFilter !== "ANOMALY_PHOTO") {
+        // Keep anomaly photos outside regular type buckets like ALTRO.
+        if (anomalyPhoto || d.type !== typeFilter) return false;
+      }
+
       if (!q) return true;
       const typeLabel = (documentTypeLabels[d.type] || "").toLowerCase();
+      const anomalyTypeLabel = d.tripAnomalyType ? (tripAnomalyTypeLabels[d.tripAnomalyType] || d.tripAnomalyType).toLowerCase() : "";
+      const anomalyStatusLabel = d.tripAnomalyStatus ? (tripAnomalyStatusLabels[d.tripAnomalyStatus] || d.tripAnomalyStatus).toLowerCase() : "";
       const haystack = [
         d.vehiclePlate, d.vehicleBrand, d.vehicleModel,
-        d.name, typeLabel, d.uploadedByName,
+        d.name, typeLabel, d.uploadedByName, anomalyTypeLabel, anomalyStatusLabel,
+        anomalyPhoto ? "foto anomalia" : "",
       ].join(" ").toLowerCase();
       const words = q.split(/\s+/).filter(Boolean);
       return words.every((w) => haystack.includes(w));
@@ -76,7 +114,14 @@ export function DocumentiList({ documents, vehicles = [], canUpload = false }: {
   const groups = useMemo(() => {
     const map = new Map<
       string,
-      { plate: string; brand: string; model: string; vehicleId: string; docs: DocItem[] }
+      {
+        plate: string;
+        brand: string;
+        model: string;
+        vehicleId: string;
+        docs: DocItem[];
+        anomalyPhotos: DocItem[];
+      }
     >();
     for (const d of filtered) {
       if (!map.has(d.vehicleId)) {
@@ -86,9 +131,14 @@ export function DocumentiList({ documents, vehicles = [], canUpload = false }: {
           model: d.vehicleModel,
           vehicleId: d.vehicleId,
           docs: [],
+          anomalyPhotos: [],
         });
       }
-      map.get(d.vehicleId)!.docs.push(d);
+      if (isAnomalyPhoto(d)) {
+        map.get(d.vehicleId)!.anomalyPhotos.push(d);
+      } else {
+        map.get(d.vehicleId)!.docs.push(d);
+      }
     }
     return Array.from(map.values());
   }, [filtered]);
@@ -201,9 +251,8 @@ export function DocumentiList({ documents, vehicles = [], canUpload = false }: {
           onChange={(e) => setTypeFilter(e.target.value)}
           className="rounded-lg border bg-background px-3 py-2 text-sm"
         >
-          <option value="">Tutti i tipi</option>
-          {allDocTypes.map(([value, label]) => (
-            <option key={value} value={value}>{label}</option>
+          {filterTypes.map((option) => (
+            <option key={option.value || "ALL"} value={option.value}>{option.label}</option>
           ))}
         </select>
         {(query || typeFilter) && (
@@ -248,6 +297,7 @@ export function DocumentiList({ documents, vehicles = [], canUpload = false }: {
                       </div>
                       <Badge variant="secondary" className="shrink-0">
                         {group.docs.length} document{group.docs.length === 1 ? "o" : "i"}
+                        {group.anomalyPhotos.length > 0 ? ` · ${group.anomalyPhotos.length} foto anomalie` : ""}
                       </Badge>
                       {isOpen ? (
                         <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -260,52 +310,130 @@ export function DocumentiList({ documents, vehicles = [], canUpload = false }: {
 
                 {isOpen && (
                   <CardContent className="pt-0 pb-4">
-                    <div className="rounded-lg border overflow-hidden">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Tipo</TableHead>
-                            <TableHead>Nome</TableHead>
-                            <TableHead>Dimensione</TableHead>
-                            <TableHead>Caricato da</TableHead>
-                            <TableHead>Data</TableHead>
-                            <TableHead className="w-12">Scarica</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {group.docs.map((d) => (
-                            <TableRow key={d.id}>
-                              <TableCell>
-                                <Badge variant="outline">
-                                  {documentTypeLabels[d.type]}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-2">
-                                  <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                                  <span className="truncate max-w-xs">{d.name}</span>
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-muted-foreground">
-                                {formatSize(d.sizeBytes)}
-                              </TableCell>
-                              <TableCell className="text-muted-foreground">
-                                {d.uploadedByName}
-                              </TableCell>
-                              <TableCell className="text-muted-foreground">
-                                {new Date(d.createdAt).toLocaleDateString("it-IT")}
-                              </TableCell>
-                              <TableCell>
-                                <a href={`/api/documents/${d.id}/download`} target="_blank" rel="noopener noreferrer">
-                                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                                    <Download className="h-4 w-4" />
-                                  </Button>
-                                </a>
-                              </TableCell>
+                    <div className="space-y-4">
+                      <div className="rounded-lg border overflow-hidden">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Tipo</TableHead>
+                              <TableHead>Nome</TableHead>
+                              <TableHead>Dimensione</TableHead>
+                              <TableHead>Caricato da</TableHead>
+                              <TableHead>Data</TableHead>
+                              <TableHead className="w-12">Scarica</TableHead>
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                          </TableHeader>
+                          <TableBody>
+                            {group.docs.length === 0 ? (
+                              <TableRow>
+                                <TableCell colSpan={6} className="py-6 text-center text-sm text-muted-foreground">
+                                  Nessun documento standard
+                                </TableCell>
+                              </TableRow>
+                            ) : (
+                              group.docs.map((d) => (
+                                <TableRow key={d.id}>
+                                  <TableCell>
+                                    <Badge variant="outline">
+                                      {documentTypeLabels[d.type]}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex items-center gap-2">
+                                      <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                                      <span className="truncate max-w-xs">{d.name}</span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">
+                                    {formatSize(d.sizeBytes)}
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">
+                                    {d.uploadedByName}
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">
+                                    {new Date(d.createdAt).toLocaleDateString("it-IT")}
+                                  </TableCell>
+                                  <TableCell>
+                                    <a href={`/api/documents/${d.id}/download`} target="_blank" rel="noopener noreferrer">
+                                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                                        <Download className="h-4 w-4" />
+                                      </Button>
+                                    </a>
+                                  </TableCell>
+                                </TableRow>
+                              ))
+                            )}
+                          </TableBody>
+                        </Table>
+                      </div>
+
+                      {group.anomalyPhotos.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                            <Camera className="h-4 w-4" />
+                            Foto Anomalie
+                          </div>
+                          <div className="rounded-lg border overflow-hidden">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Segnalazione</TableHead>
+                                  <TableHead>Nome file</TableHead>
+                                  <TableHead>Dimensione</TableHead>
+                                  <TableHead>Data</TableHead>
+                                  <TableHead className="w-20">Apri</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {group.anomalyPhotos.map((photo) => (
+                                  <TableRow key={photo.id}>
+                                    <TableCell>
+                                      <div className="flex flex-wrap items-center gap-1">
+                                        <Badge variant="outline">
+                                          {photo.tripAnomalyType
+                                            ? tripAnomalyTypeLabels[photo.tripAnomalyType] || photo.tripAnomalyType
+                                            : "Segnalazione"}
+                                        </Badge>
+                                        {photo.tripAnomalyStatus ? (
+                                          <Badge className={tripAnomalyStatusColors[photo.tripAnomalyStatus] || ""}>
+                                            {tripAnomalyStatusLabels[photo.tripAnomalyStatus] || photo.tripAnomalyStatus}
+                                          </Badge>
+                                        ) : null}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell>
+                                      <div className="flex items-center gap-2">
+                                        <Camera className="h-4 w-4 text-muted-foreground shrink-0" />
+                                        <span className="truncate max-w-xs">{photo.name}</span>
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground">{formatSize(photo.sizeBytes)}</TableCell>
+                                    <TableCell className="text-muted-foreground">
+                                      {new Date(photo.createdAt).toLocaleDateString("it-IT")}
+                                    </TableCell>
+                                    <TableCell>
+                                      <div className="flex items-center gap-1">
+                                        <a href={`/api/documents/${photo.id}/download`} target="_blank" rel="noopener noreferrer">
+                                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                                            <Download className="h-4 w-4" />
+                                          </Button>
+                                        </a>
+                                        {photo.tripAnomalyId ? (
+                                          <Link href={`/segnalazioni/${photo.tripAnomalyId}`}>
+                                            <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs">
+                                              Dettaglio
+                                            </Button>
+                                          </Link>
+                                        ) : null}
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div className="mt-2 text-right">
                       <Link href={`/mezzi/${group.vehicleId}`} className="text-xs text-primary hover:underline">

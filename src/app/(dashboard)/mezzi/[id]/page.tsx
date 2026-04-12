@@ -32,7 +32,20 @@ export default async function VehicleDetailPage({
       refuelings: { orderBy: { date: "desc" }, take: 20, include: { user: true } },
       maintenanceInterventions: { orderBy: { date: "desc" }, take: 20, include: { user: true } },
       deadlines: { orderBy: { dueDate: "asc" } },
-      documents: { orderBy: { createdAt: "desc" }, include: { uploadedBy: true } },
+      documents: {
+        orderBy: { createdAt: "desc" },
+        include: {
+          uploadedBy: true,
+          tripAnomaly: {
+            select: {
+              id: true,
+              type: true,
+              status: true,
+              tripId: true,
+            },
+          },
+        },
+      },
     },
   });
 
@@ -224,6 +237,9 @@ export default async function VehicleDetailPage({
               ...d,
               createdAt: d.createdAt.toISOString(),
               uploadedByName: d.uploadedBy.name,
+              tripAnomalyType: d.tripAnomaly?.type ?? null,
+              tripAnomalyStatus: d.tripAnomaly?.status ?? null,
+              tripId: d.tripAnomaly?.tripId ?? null,
             }))}
             canUpload={canUpload}
           />

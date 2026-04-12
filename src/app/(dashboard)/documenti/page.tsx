@@ -2,6 +2,30 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUser, canUploadDocuments } from "@/lib/auth-utils";
 import { DocumentiList, type DocItem, type VehicleOption } from "@/components/documenti-list";
 
+type DocumentWithAnomaly = {
+  id: string;
+  name: string;
+  type: string;
+  sizeBytes: number;
+  createdAt: Date;
+  vehicleId: string;
+  vehicle: {
+    plate: string;
+    brand: string;
+    model: string;
+  };
+  uploadedBy: {
+    name: string;
+  };
+  tripAnomalyId?: string | null;
+  tripAnomaly?: {
+    id: string;
+    type: string;
+    status: string;
+    tripId: string;
+  } | null;
+};
+
 export default async function DocumentiPage() {
   const user = await getSessionUser();
   const canUpload = canUploadDocuments(user.role);
@@ -12,7 +36,18 @@ export default async function DocumentiPage() {
   const [documents, vehicles] = await Promise.all([
     prisma.document.findMany({
       where: { vehicle: whereVehicle },
-      include: { vehicle: true, uploadedBy: true },
+      include: {
+        vehicle: true,
+        uploadedBy: true,
+        tripAnomaly: {
+          select: {
+            id: true,
+            type: true,
+            status: true,
+            tripId: true,
+          },
+        },
+      },
       orderBy: [{ vehicle: { plate: "asc" } }, { createdAt: "desc" }],
       take: 500,
     }),
@@ -25,7 +60,9 @@ export default async function DocumentiPage() {
       : Promise.resolve([]),
   ]);
 
-  const items: DocItem[] = documents.map((d) => ({
+  const typedDocuments = documents as unknown as DocumentWithAnomaly[];
+
+  const items: DocItem[] = typedDocuments.map((d) => ({
     id: d.id,
     name: d.name,
     type: d.type,
@@ -36,6 +73,10 @@ export default async function DocumentiPage() {
     vehicleBrand: d.vehicle.brand,
     vehicleModel: d.vehicle.model,
     uploadedByName: d.uploadedBy.name,
+    tripAnomalyId: d.tripAnomalyId ?? null,
+    tripAnomalyType: d.tripAnomaly?.type ?? null,
+    tripAnomalyStatus: d.tripAnomaly?.status ?? null,
+    tripId: d.tripAnomaly?.tripId ?? null,
   }));
 
   const vehicleOptions: VehicleOption[] = vehicles.map((v) => ({

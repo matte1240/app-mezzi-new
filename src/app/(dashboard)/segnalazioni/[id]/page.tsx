@@ -31,6 +31,57 @@ function formatBytes(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function canPreviewImage(mimeType: string) {
+  const normalized = mimeType.toLowerCase();
+  return (
+    normalized === "image/jpeg" ||
+    normalized === "image/png" ||
+    normalized === "image/webp" ||
+    normalized === "image/gif" ||
+    normalized === "image/avif" ||
+    normalized === "image/svg+xml"
+  );
+}
+
+type AnomalyDetailPayload = {
+  id: string;
+  type: string;
+  status: "OPEN" | "IN_REVIEW" | "RESOLVED";
+  message: string;
+  isManual: boolean;
+  resolutionNotes: string | null;
+  resolvedAt: Date | null;
+  trip: {
+    driverId: string;
+    startTime: Date;
+    endTime: Date | null;
+    startKm: number;
+    endKm: number | null;
+    vehicle: {
+      plate: string;
+    };
+    driver: {
+      name: string | null;
+    };
+  };
+  createdAt: Date;
+  createdBy: {
+    id: string;
+    name: string | null;
+  };
+  resolvedBy: {
+    id: string;
+    name: string | null;
+  } | null;
+  photos: Array<{
+    id: string;
+    name: string;
+    mimeType: string;
+    sizeBytes: number;
+    createdAt: Date;
+  }>;
+};
+
 export default async function SegnalazioneDetailPage({
   params,
 }: {
@@ -43,7 +94,7 @@ export default async function SegnalazioneDetailPage({
 
   const { id } = await params;
 
-  const anomaly = await prisma.tripAnomaly.findUnique({
+  const anomalyResult = await prisma.tripAnomaly.findUnique({
     where: { id },
     include: {
       trip: {
@@ -76,6 +127,8 @@ export default async function SegnalazioneDetailPage({
       },
     },
   });
+
+  const anomaly = anomalyResult as unknown as AnomalyDetailPayload | null;
 
   if (!anomaly) {
     notFound();
@@ -215,13 +268,20 @@ export default async function SegnalazioneDetailPage({
                       className="overflow-hidden rounded-lg border bg-card transition-colors hover:bg-muted/30"
                     >
                       <div className="relative aspect-video w-full bg-muted/40">
-                        <Image
-                          src={`/api/documents/${photo.id}/download`}
-                          alt={photo.name}
-                          fill
-                          className="object-cover"
-                          sizes="(max-width: 768px) 100vw, 40vw"
-                        />
+                        {canPreviewImage(photo.mimeType) ? (
+                          <Image
+                            src={`/api/documents/${photo.id}/download`}
+                            alt={photo.name}
+                            fill
+                            unoptimized
+                            className="object-cover"
+                            sizes="(max-width: 768px) 100vw, 40vw"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center px-3 text-center text-xs text-muted-foreground">
+                            Anteprima non disponibile per questo formato
+                          </div>
+                        )}
                       </div>
                       <div className="space-y-1 p-3 text-xs text-muted-foreground">
                         <p className="truncate text-sm font-medium text-foreground">{photo.name}</p>

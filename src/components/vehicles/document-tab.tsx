@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -11,9 +12,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Upload, Download, Trash2, FileText } from "lucide-react";
+import { Upload, Download, Trash2, FileText, Camera } from "lucide-react";
 import { useState } from "react";
-import { documentTypeLabels } from "@/lib/labels";
+import {
+  documentTypeLabels,
+  tripAnomalyStatusColors,
+  tripAnomalyStatusLabels,
+  tripAnomalyTypeLabels,
+} from "@/lib/labels";
 import { toast } from "sonner";
 
 type DocumentRecord = {
@@ -25,6 +31,10 @@ type DocumentRecord = {
   notes: string | null;
   createdAt: string;
   uploadedByName: string;
+  tripAnomalyId: string | null;
+  tripAnomalyType: string | null;
+  tripAnomalyStatus: string | null;
+  tripId: string | null;
 };
 
 export function DocumentTab({
@@ -82,6 +92,9 @@ export function DocumentTab({
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
+
+  const standardDocuments = documents.filter((doc) => !doc.tripAnomalyId);
+  const anomalyPhotos = documents.filter((doc) => !!doc.tripAnomalyId);
 
   return (
     <div className="space-y-4">
@@ -145,14 +158,14 @@ export function DocumentTab({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {documents.length === 0 ? (
+            {standardDocuments.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                  Nessun documento
+                  Nessun documento standard
                 </TableCell>
               </TableRow>
             ) : (
-              documents.map((d) => (
+              standardDocuments.map((d) => (
                 <TableRow key={d.id}>
                   <TableCell>
                     <Badge variant="outline">
@@ -198,6 +211,90 @@ export function DocumentTab({
           </TableBody>
         </Table>
       </div>
+
+      {anomalyPhotos.length > 0 && (
+        <div className="space-y-2">
+          <div className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <Camera className="h-4 w-4" />
+            Foto Anomalie
+          </div>
+
+          <div className="rounded-lg border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Segnalazione</TableHead>
+                  <TableHead>Nome file</TableHead>
+                  <TableHead>Dimensione</TableHead>
+                  <TableHead>Caricato da</TableHead>
+                  <TableHead>Data</TableHead>
+                  <TableHead>Azioni</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {anomalyPhotos.map((photo) => (
+                  <TableRow key={photo.id}>
+                    <TableCell>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <Badge variant="outline">
+                          {photo.tripAnomalyType
+                            ? tripAnomalyTypeLabels[photo.tripAnomalyType] || photo.tripAnomalyType
+                            : "Segnalazione"}
+                        </Badge>
+                        {photo.tripAnomalyStatus ? (
+                          <Badge className={tripAnomalyStatusColors[photo.tripAnomalyStatus] || ""}>
+                            {tripAnomalyStatusLabels[photo.tripAnomalyStatus] || photo.tripAnomalyStatus}
+                          </Badge>
+                        ) : null}
+                      </div>
+                    </TableCell>
+                    <TableCell className="flex items-center gap-2">
+                      <Camera className="h-4 w-4 text-muted-foreground" />
+                      {photo.name}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {formatSize(photo.sizeBytes)}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {photo.uploadedByName}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {new Date(photo.createdAt).toLocaleDateString("it-IT")}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <a href={`/api/documents/${photo.id}/download`} target="_blank" rel="noopener noreferrer">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" title="Apri file">
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        </a>
+                        {photo.tripAnomalyId ? (
+                          <Link href={`/segnalazioni/${photo.tripAnomalyId}`}>
+                            <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs" title="Vai alla segnalazione">
+                              Dettaglio
+                            </Button>
+                          </Link>
+                        ) : null}
+                        {canUpload && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive"
+                            title="Elimina"
+                            onClick={() => handleDelete(photo.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

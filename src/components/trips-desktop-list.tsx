@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Camera, Search, TriangleAlert } from "lucide-react";
+import { Camera, Plus, Search, TriangleAlert } from "lucide-react";
 import {
   tripStatusLabels,
   tripAnomalyTypeLabels,
@@ -88,11 +88,20 @@ export function TripsDesktopList({ trips }: { trips: TripListItem[] }) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Viaggi</h1>
-        <p className="text-sm text-muted-foreground">
-          Registro completo dei viaggi della flotta
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Viaggi</h1>
+          <p className="text-sm text-muted-foreground">
+            Registro completo dei viaggi della flotta
+          </p>
+        </div>
+        <Link
+          href="/viaggi?vehicleId=manual-entry"
+          className="inline-flex h-8 items-center justify-center gap-2 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+        >
+          <Plus className="h-4 w-4" />
+          Crea viaggio
+        </Link>
       </div>
 
       {/* Summary cards */}
