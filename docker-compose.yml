@@ -16,6 +16,19 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   app:
     build:
       context: .
@@ -30,12 +43,16 @@ services:
       NEXTAUTH_SECRET: "${NEXTAUTH_SECRET:-dev-secret-change-in-production}"
       AUTH_TRUST_HOST: "true"
       UPLOAD_DIR: "/app/uploads"
+      REDIS_URL: "redis://redis:6379"
     volumes:
       - uploads:/app/uploads
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
 
 volumes:
   pgdata:
   uploads:
+  redisdata:

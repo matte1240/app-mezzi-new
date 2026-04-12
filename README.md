@@ -1,36 +1,79 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# App Mezzi
 
-## Getting Started
+Applicazione di gestione flotta aziendale basata su Next.js, Prisma e PostgreSQL.
 
-First, run the development server:
+## Prerequisiti
+
+- Node.js 20+
+- npm 10+
+- PostgreSQL 16 (oppure Docker Compose)
+- Redis 7 (opzionale ma consigliato)
+
+## Variabili ambiente
+
+Parti da [.env.example](.env.example) e imposta almeno:
+
+- `DATABASE_URL`
+- `NEXTAUTH_URL`
+- `NEXTAUTH_SECRET`
+- `SMTP_*` per email scadenze
+- `UPLOAD_DIR`
+- `REDIS_URL` per cache dashboard e idempotenza cron
+
+Esempio locale Redis:
+
+```bash
+REDIS_URL="redis://localhost:6379"
+```
+
+## Avvio rapido (locale)
+
+```bash
+npm install
+npm run dev
+```
+
+App disponibile su `http://localhost:3005` (o porta `PORT` configurata).
+
+## Avvio con Docker Compose
+
+Lo stack include:
+
+- `db` (PostgreSQL)
+- `redis` (Redis)
+- `app` (Next.js)
+
+```bash
+docker compose up --build
+```
+
+## Comandi utili
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run lint
+npm run build
+npx prisma migrate deploy
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Redis: comportamento attuale
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+L'integrazione Redis e fail-open (resiliente):
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Se Redis e disponibile:
+	- cache read-through della dashboard (TTL breve)
+	- dedup/idempotenza invii email nel cron scadenze
+- Se Redis non e disponibile:
+	- l'app continua a funzionare
+	- dashboard usa query DB dirette
+	- cron continua a inviare email senza dedup
 
-## Learn More
+## Cron scadenze
 
-To learn more about Next.js, take a look at the following resources:
+Endpoint:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `GET /api/cron/deadlines`
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Protezione con header:
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `Authorization: Bearer <CRON_SECRET>` (se `CRON_SECRET` impostato)

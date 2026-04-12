@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendDeadlineReminder } from "@/lib/email";
+import { redisSetNxEx } from "@/lib/redis";
 
 const deadlineTypeLabels: Record<string, string> = {
   TAGLIANDO: "Tagliando",
@@ -40,6 +41,9 @@ export async function GET(request: NextRequest) {
 
   const now = new Date();
   let sent = 0;
+  let skippedDuplicate = 0;
+  let redisUnavailable = 0;
+  const dayBucket = now.toISOString().slice(0, 10);
 
   for (const deadline of deadlines) {
     const dueDate = new Date(deadline.dueDate);
@@ -48,6 +52,19 @@ export async function GET(request: NextRequest) {
 
     if (daysRemaining <= deadline.reminderDays) {
       for (const admin of admins) {
+        const recipientKey = encodeURIComponent(admin.email.toLowerCase());
+        const dedupKey = `deadline-reminder:${dayBucket}:${deadline.id}:${recipientKey}`;
+        const dedup = await redisSetNxEx(dedupKey, "1", 36 * 60 * 60);
+
+        if (dedup === "exists") {
+          skippedDuplicate++;
+          continue;
+        }
+
+        if (dedup === "unavailable") {
+          redisUnavailable++;
+        }
+
         try {
           await sendDeadlineReminder({
             to: admin.email,
@@ -69,5 +86,9 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     message: `Processed ${deadlines.length} deadlines, sent ${sent} emails`,
+    sent,
+    skippedDuplicate,
+    redisUnavailable,
+    processedDeadlines: deadlines.length,
   });
 }

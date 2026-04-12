@@ -14,25 +14,92 @@ import { it } from "date-fns/locale";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { tripAnomalyTypeLabels, tripAnomalyStatusLabels } from "@/lib/labels";
+import { redisGetJson, redisSetEx } from "@/lib/redis";
 
-export default async function DashboardPage() {
-  const user = await getSessionUser();
+const DASHBOARD_CACHE_TTL_SECONDS = 45;
 
-  // Redirect to onboarding if no vehicles exist (ADMIN/FLEET_MANAGER only)
-  if (user.role === "ADMIN" || user.role === "FLEET_MANAGER") {
-    const vehicleExists = await prisma.vehicle.findFirst({ select: { id: true } });
-    if (!vehicleExists) {
-      redirect("/onboarding");
-    }
-  }
+type DashboardDeadlineItem = {
+  id: string;
+  type: string;
+  dueDate: string;
+  vehicle: {
+    plate: string;
+    brand: string;
+    model: string;
+  };
+};
 
+type DashboardRefuelingItem = {
+  id: string;
+  date: string;
+  liters: number;
+  costEur: number;
+  vehicle: {
+    plate: string;
+  };
+};
+
+type DashboardMaintenanceItem = {
+  id: string;
+  description: string;
+  date: string;
+  vehicle: {
+    plate: string;
+  };
+};
+
+type DashboardOpenTrip = {
+  id: string;
+  startTime: string;
+  vehicle: {
+    plate: string;
+  };
+  driver: {
+    name: string;
+  };
+} | null;
+
+type DashboardTripAnomaly = {
+  id: string;
+  type: string;
+  status: string;
+  message: string;
+  createdAt: string;
+  trip: {
+    vehicle: {
+      plate: string;
+    };
+    driver: {
+      name: string;
+    };
+  };
+  _count: {
+    photos: number;
+  };
+};
+
+type DashboardPayload = {
+  vehicleCount: number;
+  activeCount: number;
+  maintenanceCount: number;
+  overdueDeadlines: DashboardDeadlineItem[];
+  upcomingDeadlines: DashboardDeadlineItem[];
+  recentRefuelings: DashboardRefuelingItem[];
+  recentMaintenance: DashboardMaintenanceItem[];
+  openTrip: DashboardOpenTrip;
+  recentTripAnomalies: DashboardTripAnomaly[];
+  openTripsCount: number;
+};
+
+function getDashboardCacheKey(role: string, userId: string) {
+  return `dashboard:v1:${role}:${userId}`;
+}
+
+async function queryDashboardData(role: string, userId: string): Promise<DashboardPayload> {
   const now = new Date();
   const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-  const whereVehicle =
-    user.role === "DRIVER"
-      ? { assignedDriverId: user.id }
-      : {};
+  const whereVehicle = role === "DRIVER" ? { assignedDriverId: userId } : {};
 
   const [
     vehicleCount,
@@ -55,7 +122,15 @@ export default async function DashboardPage() {
         dueDate: { lt: now },
         vehicle: whereVehicle,
       },
-      include: { vehicle: true },
+      include: {
+        vehicle: {
+          select: {
+            plate: true,
+            brand: true,
+            model: true,
+          },
+        },
+      },
       orderBy: { dueDate: "asc" },
       take: 10,
     }),
@@ -65,37 +140,66 @@ export default async function DashboardPage() {
         dueDate: { gte: now, lte: in30Days },
         vehicle: whereVehicle,
       },
-      include: { vehicle: true },
+      include: {
+        vehicle: {
+          select: {
+            plate: true,
+            brand: true,
+            model: true,
+          },
+        },
+      },
       orderBy: { dueDate: "asc" },
       take: 10,
     }),
     prisma.refueling.findMany({
       where: { vehicle: whereVehicle },
-      include: { vehicle: true },
+      include: {
+        vehicle: {
+          select: { plate: true },
+        },
+      },
       orderBy: { date: "desc" },
       take: 5,
     }),
     prisma.maintenanceIntervention.findMany({
       where: { vehicle: whereVehicle },
-      include: { vehicle: true },
+      include: {
+        vehicle: {
+          select: { plate: true },
+        },
+      },
       orderBy: { date: "desc" },
       take: 5,
     }),
     prisma.trip.findFirst({
       where:
-        user.role === "DRIVER"
-          ? { driverId: user.id, status: "OPEN" }
+        role === "DRIVER"
+          ? { driverId: userId, status: "OPEN" }
           : { status: "OPEN" },
-      include: { vehicle: true, driver: true },
+      include: {
+        vehicle: {
+          select: { plate: true },
+        },
+        driver: {
+          select: { name: true },
+        },
+      },
       orderBy: { startTime: "desc" },
     }),
     prisma.tripAnomaly.findMany({
-      where:
-        user.role === "DRIVER"
-          ? { trip: { driverId: user.id } }
-          : {},
+      where: role === "DRIVER" ? { trip: { driverId: userId } } : {},
       include: {
-        trip: { include: { vehicle: true, driver: true } },
+        trip: {
+          include: {
+            vehicle: {
+              select: { plate: true },
+            },
+            driver: {
+              select: { name: true },
+            },
+          },
+        },
         _count: { select: { photos: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -103,11 +207,124 @@ export default async function DashboardPage() {
     }),
     prisma.trip.count({
       where:
-        user.role === "DRIVER"
-          ? { driverId: user.id, status: "OPEN" }
+        role === "DRIVER"
+          ? { driverId: userId, status: "OPEN" }
           : { status: "OPEN" },
     }),
   ]);
+
+  return {
+    vehicleCount,
+    activeCount,
+    maintenanceCount,
+    overdueDeadlines: overdueDeadlines.map((d) => ({
+      id: d.id,
+      type: d.type,
+      dueDate: d.dueDate.toISOString(),
+      vehicle: {
+        plate: d.vehicle.plate,
+        brand: d.vehicle.brand,
+        model: d.vehicle.model,
+      },
+    })),
+    upcomingDeadlines: upcomingDeadlines.map((d) => ({
+      id: d.id,
+      type: d.type,
+      dueDate: d.dueDate.toISOString(),
+      vehicle: {
+        plate: d.vehicle.plate,
+        brand: d.vehicle.brand,
+        model: d.vehicle.model,
+      },
+    })),
+    recentRefuelings: recentRefuelings.map((r) => ({
+      id: r.id,
+      date: r.date.toISOString(),
+      liters: Number(r.liters),
+      costEur: Number(r.costEur),
+      vehicle: {
+        plate: r.vehicle.plate,
+      },
+    })),
+    recentMaintenance: recentMaintenance.map((m) => ({
+      id: m.id,
+      description: m.description,
+      date: m.date.toISOString(),
+      vehicle: {
+        plate: m.vehicle.plate,
+      },
+    })),
+    openTrip: openTrip
+      ? {
+          id: openTrip.id,
+          startTime: openTrip.startTime.toISOString(),
+          vehicle: {
+            plate: openTrip.vehicle.plate,
+          },
+          driver: {
+            name: openTrip.driver.name,
+          },
+        }
+      : null,
+    recentTripAnomalies: recentTripAnomalies.map((a) => ({
+      id: a.id,
+      type: a.type,
+      status: a.status,
+      message: a.message,
+      createdAt: a.createdAt.toISOString(),
+      trip: {
+        vehicle: {
+          plate: a.trip.vehicle.plate,
+        },
+        driver: {
+          name: a.trip.driver.name,
+        },
+      },
+      _count: {
+        photos: a._count.photos,
+      },
+    })),
+    openTripsCount,
+  };
+}
+
+async function getDashboardData(role: string, userId: string) {
+  const key = getDashboardCacheKey(role, userId);
+  const cached = await redisGetJson<DashboardPayload>(key);
+  if (cached) {
+    return cached;
+  }
+
+  const fresh = await queryDashboardData(role, userId);
+  await redisSetEx(key, JSON.stringify(fresh), DASHBOARD_CACHE_TTL_SECONDS);
+  return fresh;
+}
+
+export default async function DashboardPage() {
+  const user = await getSessionUser();
+
+  // Redirect to onboarding if no vehicles exist (ADMIN/FLEET_MANAGER only)
+  if (user.role === "ADMIN" || user.role === "FLEET_MANAGER") {
+    const vehicleExists = await prisma.vehicle.findFirst({ select: { id: true } });
+    if (!vehicleExists) {
+      redirect("/onboarding");
+    }
+  }
+
+  const now = new Date();
+
+  const {
+    vehicleCount,
+    activeCount,
+    maintenanceCount,
+    overdueDeadlines,
+    upcomingDeadlines,
+    recentRefuelings,
+    recentMaintenance,
+    openTrip,
+    recentTripAnomalies,
+    openTripsCount,
+  } = await getDashboardData(user.role, user.id);
 
   const deadlineTypeLabels: Record<string, string> = {
     TAGLIANDO: "Tagliando",
@@ -216,7 +433,7 @@ export default async function DashboardPage() {
                         </span>
                       </div>
                       <Badge variant="destructive">
-                        Scaduta da {differenceInDays(now, d.dueDate)}gg
+                        Scaduta da {differenceInDays(now, new Date(d.dueDate))}gg
                       </Badge>
                     </li>
                   ))}
@@ -252,7 +469,7 @@ export default async function DashboardPage() {
                         </span>
                       </div>
                       <Badge variant="outline" className="text-orange-500 border-orange-500">
-                        {format(d.dueDate, "dd MMM", { locale: it })}
+                        {format(new Date(d.dueDate), "dd MMM", { locale: it })}
                       </Badge>
                     </li>
                   ))}
@@ -285,11 +502,11 @@ export default async function DashboardPage() {
                           {r.vehicle.plate}
                         </span>
                         <span className="ml-2 text-muted-foreground">
-                          {format(r.date, "dd/MM/yy", { locale: it })}
+                          {format(new Date(r.date), "dd/MM/yy", { locale: it })}
                         </span>
                       </div>
                       <span>
-                        {Number(r.liters)}L — €{Number(r.costEur).toFixed(2)}
+                        {r.liters}L — €{r.costEur.toFixed(2)}
                       </span>
                     </li>
                   ))}
@@ -324,7 +541,7 @@ export default async function DashboardPage() {
                         </span>
                       </div>
                       <span className="text-muted-foreground">
-                        {format(m.date, "dd/MM/yy", { locale: it })}
+                        {format(new Date(m.date), "dd/MM/yy", { locale: it })}
                       </span>
                     </li>
                   ))}
@@ -353,7 +570,7 @@ export default async function DashboardPage() {
                     <span className="ml-2 text-muted-foreground">{openTrip.driver.name}</span>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Inizio {format(openTrip.startTime, "dd/MM HH:mm", { locale: it })}
+                    Inizio {format(new Date(openTrip.startTime), "dd/MM HH:mm", { locale: it })}
                   </p>
                   <Badge>{user.role === "DRIVER" ? "In corso" : `${openTripsCount} attivi`}</Badge>
                 </div>
@@ -387,7 +604,7 @@ export default async function DashboardPage() {
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {a.message} · {tripAnomalyStatusLabels[a.status] || a.status}
-                        {a._count.photos > 0 ? ` · ${a._count.photos} foto` : ""} · {format(a.createdAt, "dd/MM HH:mm", { locale: it })}
+                        {a._count.photos > 0 ? ` · ${a._count.photos} foto` : ""} · {format(new Date(a.createdAt), "dd/MM HH:mm", { locale: it })}
                       </div>
                     </li>
                   ))}
