@@ -67,3 +67,17 @@ export const statusColors: Record<string, string> = {
   INACTIVE: "bg-gray-100 text-gray-800",
   MAINTENANCE: "bg-yellow-100 text-yellow-800",
 };
+
+export const tripStatusLabels: Record<string, string> = {
+  OPEN: "In corso",
+  COMPLETED: "Completato",
+  ABANDONED: "Interrotto",
+};
+
+export const tripAnomalyTypeLabels: Record<string, string> = {
+  LONG_DURATION: "Durata eccessiva",
+  EXCESSIVE_DISTANCE: "Distanza eccessiva",
+  HIGH_AVERAGE_SPEED: "Velocita media anomala",
+  KM_INVARIATO: "Km invariato",
+  MANUAL: "Segnalazione manuale",
+};

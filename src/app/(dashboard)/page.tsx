@@ -8,11 +8,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Truck, AlertTriangle, Clock, Fuel, Wrench } from "lucide-react";
+import { Truck, AlertTriangle, Clock, Fuel, Wrench, Route, Siren } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { tripAnomalyTypeLabels } from "@/lib/labels";
 
 export default async function DashboardPage() {
   const user = await getSessionUser();
@@ -41,6 +42,9 @@ export default async function DashboardPage() {
     upcomingDeadlines,
     recentRefuelings,
     recentMaintenance,
+    openTrip,
+    recentTripAnomalies,
+    openTripsCount,
   ] = await Promise.all([
     prisma.vehicle.count({ where: whereVehicle }),
     prisma.vehicle.count({ where: { ...whereVehicle, status: "ACTIVE" } }),
@@ -76,6 +80,29 @@ export default async function DashboardPage() {
       include: { vehicle: true },
       orderBy: { date: "desc" },
       take: 5,
+    }),
+    prisma.trip.findFirst({
+      where:
+        user.role === "DRIVER"
+          ? { driverId: user.id, status: "OPEN" }
+          : { status: "OPEN" },
+      include: { vehicle: true, driver: true },
+      orderBy: { startTime: "desc" },
+    }),
+    prisma.tripAnomaly.findMany({
+      where:
+        user.role === "DRIVER"
+          ? { trip: { driverId: user.id } }
+          : {},
+      include: { trip: { include: { vehicle: true, driver: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+    }),
+    prisma.trip.count({
+      where:
+        user.role === "DRIVER"
+          ? { driverId: user.id, status: "OPEN" }
+          : { status: "OPEN" },
     }),
   ]);
 
@@ -296,6 +323,68 @@ export default async function DashboardPage() {
                       <span className="text-muted-foreground">
                         {format(m.date, "dd/MM/yy", { locale: it })}
                       </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        </Link>
+      </div>
+
+      {/* Trips */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Link href="/viaggi">
+          <Card className="h-full transition-colors hover:bg-muted/50 cursor-pointer">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Route className="h-5 w-5" />
+                {user.role === "DRIVER" ? "Il Tuo Viaggio" : "Viaggi Attivi"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {openTrip ? (
+                <div className="space-y-2">
+                  <div className="text-sm">
+                    <span className="font-medium">{openTrip.vehicle.plate}</span>
+                    <span className="ml-2 text-muted-foreground">{openTrip.driver.name}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Inizio {format(openTrip.startTime, "dd/MM HH:mm", { locale: it })}
+                  </p>
+                  <Badge>{user.role === "DRIVER" ? "In corso" : `${openTripsCount} attivi`}</Badge>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Nessun viaggio attivo</p>
+                  <p className="text-xs text-muted-foreground">Apri la pagina Viaggi per iniziare rapidamente</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/viaggi">
+          <Card className="h-full transition-colors hover:bg-muted/50 cursor-pointer">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-orange-600">
+                <Siren className="h-5 w-5" />
+                Anomalie Viaggio Recenti
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {recentTripAnomalies.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nessuna anomalia recente</p>
+              ) : (
+                <ul className="space-y-2">
+                  {recentTripAnomalies.map((a) => (
+                    <li key={a.id} className="text-sm">
+                      <div className="font-medium">
+                        {a.trip.vehicle.plate} · {tripAnomalyTypeLabels[a.type] || a.type}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {a.message} · {format(a.createdAt, "dd/MM HH:mm", { locale: it })}
+                      </div>
                     </li>
                   ))}
                 </ul>

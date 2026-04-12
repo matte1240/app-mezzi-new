@@ -33,7 +33,7 @@ export const mileageSchema = z.object({
   vehicleId: z.string().min(1),
   km: z.coerce.number().int().positive("Km deve essere positivo"),
   date: z.coerce.date(),
-  source: z.enum(["MANUAL", "REFUEL", "MAINTENANCE"]).default("MANUAL"),
+  source: z.enum(["MANUAL", "REFUEL", "MAINTENANCE", "TRIP"]).default("MANUAL"),
   notes: z.string().optional().nullable(),
 });
 
@@ -112,3 +112,28 @@ export const plannedMaintenanceSchema = z.object({
   notes: z.string().optional().nullable(),
 });
 export type PlannedMaintenanceInput = z.infer<typeof plannedMaintenanceSchema>;
+
+export const tripStartSchema = z.object({
+  vehicleId: z.string().min(1, "Mezzo obbligatorio"),
+  startKm: z.coerce.number().int().positive("Km iniziale non valido"),
+  startQrRaw: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
+});
+
+export const tripStopSchema = z.object({
+  tripId: z.string().min(1),
+  endKm: z.coerce.number().int().positive("Km finale non valido"),
+  endQrRaw: z.string().optional().nullable(),
+  manualAnomalyType: z.preprocess(
+    (val) => (val === "" ? undefined : val),
+    z
+      .enum(["MANUAL", "LONG_DURATION", "EXCESSIVE_DISTANCE", "HIGH_AVERAGE_SPEED", "KM_INVARIATO"])
+      .optional()
+      .nullable()
+  ),
+  manualAnomalyMessage: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
+});
+
+export type TripStartInput = z.infer<typeof tripStartSchema>;
+export type TripStopInput = z.infer<typeof tripStopSchema>;

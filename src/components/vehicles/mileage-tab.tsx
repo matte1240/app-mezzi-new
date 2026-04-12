@@ -34,6 +34,7 @@ const sourceLabels: Record<string, string> = {
   MANUAL: "Manuale",
   REFUEL: "Rifornimento",
   MAINTENANCE: "Intervento",
+  TRIP: "Viaggio",
 };
 
 export function MileageTab({

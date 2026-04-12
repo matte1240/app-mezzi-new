@@ -5,7 +5,15 @@ import { TableRow, TableCell } from "@/components/ui/table";
 import { updateMileageReading } from "@/lib/actions/record-actions";
 import { SubmitButton } from "@/components/ui/submit-button";
 
-export function MileageEditRow({ item, vehicleId, onCancel }: { item: any, vehicleId: string, onCancel: () => void }) {
+type MileageEditItem = {
+  id: string;
+  date: string;
+  km: number;
+  source: string;
+  notes: string | null;
+};
+
+export function MileageEditRow({ item, vehicleId, onCancel }: { item: MileageEditItem; vehicleId: string; onCancel: () => void }) {
   const [state, formAction] = useActionState(updateMileageReading, undefined);
 
   useEffect(() => {

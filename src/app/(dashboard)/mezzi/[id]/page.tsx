@@ -14,6 +14,7 @@ import { MaintenanceTab } from "@/components/vehicles/maintenance-tab";
 import { DeadlineTab } from "@/components/vehicles/deadline-tab";
 import { DocumentTab } from "@/components/vehicles/document-tab";
 import { DeleteVehicleButton } from "@/components/vehicles/delete-vehicle-button";
+import { VehicleQrCard } from "@/components/vehicles/vehicle-qr-card";
 
 export default async function VehicleDetailPage({
   params,
@@ -84,7 +85,7 @@ export default async function VehicleDetailPage({
       </div>
 
       {/* Info cards */}
-      <div className="grid gap-4 sm:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -131,6 +132,7 @@ export default async function VehicleDetailPage({
             <p className="text-sm font-mono">{vehicle.vin || "—"}</p>
           </CardContent>
         </Card>
+        <VehicleQrCard vehicleId={vehicle.id} plate={vehicle.plate} />
       </div>
 
       {vehicle.notes && (

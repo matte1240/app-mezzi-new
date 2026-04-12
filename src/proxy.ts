@@ -4,8 +4,15 @@ import { NextResponse } from "next/server";
 export default auth((req) => {
   const { pathname } = req.nextUrl;
 
+  const isPwaAsset =
+    pathname === "/manifest.webmanifest" ||
+    pathname === "/sw.js" ||
+    pathname.startsWith("/apple-icon") ||
+    pathname.startsWith("/icon-");
+
   // Public routes
   if (
+    isPwaAsset ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/setup") ||
     pathname.startsWith("/api/auth") ||
@@ -33,5 +40,5 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|apple-icon|icon-).*)"],
 };

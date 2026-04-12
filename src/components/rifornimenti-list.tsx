@@ -4,7 +4,6 @@ import { useState, useMemo, useActionState } from "react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Search, Plus, ChevronUp } from "lucide-react";
 import Link from "next/link";

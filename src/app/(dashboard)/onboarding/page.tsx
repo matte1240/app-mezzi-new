@@ -36,7 +36,6 @@ export default function OnboardingPage() {
   const [step, setStep] = useState<Step>("welcome");
   const [vehicleAdded, setVehicleAdded] = useState(false);
   const [userAdded, setUserAdded] = useState(false);
-  const router = useRouter();
 
   const currentIndex = STEPS.findIndex((s) => s.key === step);
 

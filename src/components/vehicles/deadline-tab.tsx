@@ -70,7 +70,7 @@ export function DeadlineTab({
     ok: { label: "OK", className: "bg-blue-100 text-blue-800" },
   };
 
-  function DeadlineTableRows({ items }: { items: DeadlineRecord[] }) {
+  const renderDeadlineTableRows = (items: DeadlineRecord[]) => {
     if (items.length === 0) {
       return (
         <TableRow>
@@ -132,7 +132,7 @@ export function DeadlineTab({
         })}
       </>
     );
-  }
+  };
 
   const tableHeader = (
     <TableHeader>
@@ -233,7 +233,7 @@ export function DeadlineTab({
           <Table>
             {tableHeader}
             <TableBody>
-              <DeadlineTableRows items={autoDeadlines} />
+              {renderDeadlineTableRows(autoDeadlines)}
             </TableBody>
           </Table>
         </div>
@@ -253,7 +253,7 @@ export function DeadlineTab({
             <Table>
               {tableHeader}
               <TableBody>
-                <DeadlineTableRows items={manualDeadlines} />
+                {renderDeadlineTableRows(manualDeadlines)}
               </TableBody>
             </Table>
           </div>

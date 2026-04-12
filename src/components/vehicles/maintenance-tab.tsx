@@ -178,8 +178,7 @@ export function MaintenanceTab({
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline">
-                      {/* @ts-ignore */}
-                      {maintenanceTypeLabels[m.type]}
+                      {maintenanceTypeLabels[m.type as keyof typeof maintenanceTypeLabels] ?? m.type}
                     </Badge>
                   </TableCell>
                   <TableCell className="font-mono">

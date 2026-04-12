@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { getSessionUser } from "@/lib/auth-utils";
+import { canManageVehicles, getSessionUser } from "@/lib/auth-utils";
 import { mileageSchema, refuelingSchema, maintenanceSchema } from "@/lib/validators";
 import { revalidatePath } from "next/cache";
 
@@ -121,7 +121,7 @@ export async function createMaintenance(
 export async function deleteRecord(type: 'mileage' | 'refueling' | 'maintenance', id: string, vehicleId: string) {
   const user = await getSessionUser();
   if (user.role !== "ADMIN" && user.role !== "FLEET_MANAGER") {
-    // maybe check if driver can delete
+    return { error: "Non autorizzato" };
   }
   
   if (type === 'mileage') {
@@ -143,6 +143,11 @@ export async function updateMileageReading(
   _prevState: { error?: string; success?: boolean } | undefined,
   formData: FormData
 ) {
+  const user = await getSessionUser();
+  if (!canManageVehicles(user.role)) {
+    return { error: "Non autorizzato" };
+  }
+
   const id = formData.get("id") as string;
   const raw = Object.fromEntries(formData.entries());
   const parsed = mileageSchema.safeParse(raw);
@@ -162,6 +167,11 @@ export async function updateRefueling(
   _prevState: { error?: string; success?: boolean } | undefined,
   formData: FormData
 ) {
+  const user = await getSessionUser();
+  if (!canManageVehicles(user.role)) {
+    return { error: "Non autorizzato" };
+  }
+
   const id = formData.get("id") as string;
   const raw = Object.fromEntries(formData.entries());
   const parsed = refuelingSchema.safeParse(raw);
@@ -181,6 +191,11 @@ export async function updateMaintenance(
   _prevState: { error?: string; success?: boolean } | undefined,
   formData: FormData
 ) {
+  const user = await getSessionUser();
+  if (!canManageVehicles(user.role)) {
+    return { error: "Non autorizzato" };
+  }
+
   const id = formData.get("id") as string;
   const raw = Object.fromEntries(formData.entries());
   const parsed = maintenanceSchema.safeParse(raw);

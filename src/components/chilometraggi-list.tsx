@@ -6,7 +6,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Search, Plus, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, Plus, ChevronUp } from "lucide-react";
 import Link from "next/link";
 import { createMileageReading } from "@/lib/actions/record-actions";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -31,6 +31,7 @@ const sourceLabels: Record<string, string> = {
   MANUAL: "Manuale",
   REFUEL: "Rifornimento",
   MAINTENANCE: "Intervento",
+  TRIP: "Viaggio",
 };
 
 export function ChilometraggiList({ readings, vehicles, lastKmMap = {} }: { readings: MileageItem[]; vehicles: VehicleOption[]; lastKmMap?: Record<string, number> }) {

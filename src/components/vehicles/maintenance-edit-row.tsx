@@ -5,7 +5,18 @@ import { TableRow, TableCell } from "@/components/ui/table";
 import { updateMaintenance } from "@/lib/actions/record-actions";
 import { SubmitButton } from "@/components/ui/submit-button";
 
-export function MaintenanceEditRow({ item, vehicleId, onCancel }: { item: any, vehicleId: string, onCancel: () => void }) {
+type MaintenanceEditItem = {
+  id: string;
+  type: string;
+  date: string;
+  km: number;
+  costEur: number | null;
+  garage: string | null;
+  description: string;
+  notes: string | null;
+};
+
+export function MaintenanceEditRow({ item, vehicleId, onCancel }: { item: MaintenanceEditItem; vehicleId: string; onCancel: () => void }) {
   const [state, formAction] = useActionState(updateMaintenance, undefined);
 
   useEffect(() => {

@@ -5,7 +5,17 @@ import { TableRow, TableCell } from "@/components/ui/table";
 import { updateRefueling } from "@/lib/actions/record-actions";
 import { SubmitButton } from "@/components/ui/submit-button";
 
-export function RefuelingEditRow({ item, vehicleId, vehicleFuelType, onCancel }: { item: any, vehicleId: string, vehicleFuelType: string, onCancel: () => void }) {
+type RefuelingEditItem = {
+  id: string;
+  date: string;
+  km: number;
+  liters: number;
+  costEur: number;
+  fuelType: string;
+  notes: string | null;
+};
+
+export function RefuelingEditRow({ item, vehicleId, vehicleFuelType, onCancel }: { item: RefuelingEditItem; vehicleId: string; vehicleFuelType: string; onCancel: () => void }) {
   const [state, formAction] = useActionState(updateRefueling, undefined);
 
   useEffect(() => {

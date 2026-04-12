@@ -39,3 +39,7 @@ export function canManageDeadlines(role: string) {
 export function canUploadDocuments(role: string) {
   return role === "ADMIN" || role === "FLEET_MANAGER";
 }
+
+export function canRecordTrips(role: string) {
+  return role === "ADMIN" || role === "FLEET_MANAGER" || role === "DRIVER";
+}
