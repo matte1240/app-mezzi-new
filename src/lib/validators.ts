@@ -135,5 +135,15 @@ export const tripStopSchema = z.object({
   notes: z.string().optional().nullable(),
 });
 
+export const tripAnomalyStatusUpdateSchema = z.object({
+  anomalyId: z.string().min(1, "Segnalazione non valida"),
+  status: z.enum(["OPEN", "IN_REVIEW", "RESOLVED"]),
+  resolutionNotes: z.preprocess(
+    (val) => (typeof val === "string" && val.trim() === "" ? undefined : val),
+    z.string().max(1000, "Note troppo lunghe").optional().nullable()
+  ),
+});
+
 export type TripStartInput = z.infer<typeof tripStartSchema>;
 export type TripStopInput = z.infer<typeof tripStopSchema>;
+export type TripAnomalyStatusUpdateInput = z.infer<typeof tripAnomalyStatusUpdateSchema>;

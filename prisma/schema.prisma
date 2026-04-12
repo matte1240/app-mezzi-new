@@ -55,6 +55,12 @@ enum TripAnomalyType {
   MANUAL
 }
 
+enum TripAnomalyStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+}
+
 enum MaintenanceType {
   TAGLIANDO
   REVISIONE
@@ -97,7 +103,8 @@ model User {
   uploadedDocuments        Document[]
   plannedMaintenances      PlannedMaintenance[]
   trips                    Trip[]
-  tripAnomalies            TripAnomaly[]
+  createdTripAnomalies     TripAnomaly[]             @relation("TripAnomalyCreatedBy")
+  resolvedTripAnomalies    TripAnomaly[]             @relation("TripAnomalyResolvedBy")
 }
 
 model Vehicle {
@@ -209,6 +216,8 @@ model Document {
   id               String       @id @default(cuid())
   vehicleId        String
   vehicle          Vehicle      @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  tripAnomalyId    String?
+  tripAnomaly      TripAnomaly? @relation(fields: [tripAnomalyId], references: [id], onDelete: SetNull)
   uploadedByUserId String
   uploadedBy       User         @relation(fields: [uploadedByUserId], references: [id])
   type             DocumentType
@@ -221,6 +230,7 @@ model Document {
 
   @@index([vehicleId])
   @@index([type])
+  @@index([tripAnomalyId])
 }
 
 enum PlannedMaintenanceStatus {
@@ -274,16 +284,25 @@ model Trip {
 }
 
 model TripAnomaly {
-  id        String          @id @default(cuid())
-  tripId    String
-  trip      Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  type      TripAnomalyType
-  message   String
-  isManual  Boolean         @default(false)
-  createdByUserId String
-  createdBy User            @relation(fields: [createdByUserId], references: [id])
-  createdAt DateTime        @default(now())
+  id               String            @id @default(cuid())
+  tripId           String
+  trip             Trip              @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  type             TripAnomalyType
+  status           TripAnomalyStatus @default(OPEN)
+  message          String
+  isManual         Boolean           @default(false)
+  createdByUserId  String
+  createdBy        User              @relation("TripAnomalyCreatedBy", fields: [createdByUserId], references: [id])
+  resolvedByUserId String?
+  resolvedBy       User?             @relation("TripAnomalyResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+  resolutionNotes  String?
+  resolvedAt       DateTime?
+  createdAt        DateTime          @default(now())
+
+  photos           Document[]
 
   @@index([tripId])
   @@index([type, createdAt])
+  @@index([status, createdAt])
+  @@index([resolvedByUserId])
 }

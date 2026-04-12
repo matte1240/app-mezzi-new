@@ -81,3 +81,15 @@ export const tripAnomalyTypeLabels: Record<string, string> = {
   KM_INVARIATO: "Km invariato",
   MANUAL: "Segnalazione manuale",
 };
+
+export const tripAnomalyStatusLabels: Record<string, string> = {
+  OPEN: "Aperta",
+  IN_REVIEW: "In lavorazione",
+  RESOLVED: "Risolta",
+};
+
+export const tripAnomalyStatusColors: Record<string, string> = {
+  OPEN: "bg-red-100 text-red-800",
+  IN_REVIEW: "bg-amber-100 text-amber-800",
+  RESOLVED: "bg-green-100 text-green-800",
+};

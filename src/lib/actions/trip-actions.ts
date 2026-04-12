@@ -412,6 +412,7 @@ export async function stopTrip(
         await prisma.document.create({
           data: {
             vehicleId: tripVehicleId,
+            tripAnomalyId: anomalyIdForPhotos || null,
             uploadedByUserId: user.id,
             type: "ALTRO",
             name: photo.name || fileName,

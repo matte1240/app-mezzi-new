@@ -1,13 +1,18 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useMemo } from "react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Search, TriangleAlert } from "lucide-react";
-import { tripStatusLabels, tripAnomalyTypeLabels } from "@/lib/labels";
+import { Camera, Search, TriangleAlert } from "lucide-react";
+import {
+  tripStatusLabels,
+  tripAnomalyTypeLabels,
+  tripAnomalyStatusLabels,
+} from "@/lib/labels";
 
 export type TripListItem = {
   id: string;
@@ -19,7 +24,14 @@ export type TripListItem = {
   startKm: number;
   endKm: number | null;
   notes: string | null;
-  anomalies: { type: string; message: string; isManual: boolean }[];
+  anomalies: {
+    id: string;
+    type: string;
+    status: string;
+    message: string;
+    isManual: boolean;
+    photoCount: number;
+  }[];
 };
 
 const tripStatusColors: Record<string, string> = {
@@ -58,6 +70,7 @@ export function TripsDesktopList({ trips }: { trips: TripListItem[] }) {
           t.vehiclePlate,
           t.driverName,
           t.notes ?? "",
+          t.anomalies.map((a) => tripAnomalyStatusLabels[a.status] || a.status).join(" "),
           t.anomalies.map((a) => a.message).join(" "),
         ]
           .join(" ")
@@ -191,15 +204,24 @@ export function TripsDesktopList({ trips }: { trips: TripListItem[] }) {
                       <TableCell>
                         {trip.anomalies.length > 0 ? (
                           <div className="flex flex-wrap gap-1">
-                            {trip.anomalies.map((a, i) => (
-                              <Badge
-                                key={i}
-                                variant="outline"
-                                className="gap-1 border-orange-300 text-orange-700"
-                              >
-                                <TriangleAlert className="h-3 w-3" />
-                                {tripAnomalyTypeLabels[a.type] ?? a.type}
-                              </Badge>
+                            {trip.anomalies.map((a) => (
+                              <Link key={a.id} href={`/segnalazioni/${a.id}`}>
+                                <Badge
+                                  variant="outline"
+                                  className="gap-1 border-orange-300 text-orange-700 hover:bg-orange-50"
+                                >
+                                  <TriangleAlert className="h-3 w-3" />
+                                  {tripAnomalyTypeLabels[a.type] ?? a.type}
+                                  <span className="text-orange-500/80">·</span>
+                                  {tripAnomalyStatusLabels[a.status] ?? a.status}
+                                  {a.photoCount > 0 ? (
+                                    <span className="inline-flex items-center gap-0.5">
+                                      <Camera className="h-3 w-3" />
+                                      {a.photoCount}
+                                    </span>
+                                  ) : null}
+                                </Badge>
+                              </Link>
                             ))}
                           </div>
                         ) : (

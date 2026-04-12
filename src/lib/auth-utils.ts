@@ -43,3 +43,11 @@ export function canUploadDocuments(role: string) {
 export function canRecordTrips(role: string) {
   return role === "ADMIN" || role === "FLEET_MANAGER" || role === "DRIVER";
 }
+
+export function canViewTripAnomalies(role: string) {
+  return canRecordTrips(role);
+}
+
+export function canManageTripAnomalies(role: string) {
+  return role === "ADMIN" || role === "FLEET_MANAGER";
+}

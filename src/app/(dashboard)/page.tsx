@@ -13,7 +13,7 @@ import { format, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { tripAnomalyTypeLabels } from "@/lib/labels";
+import { tripAnomalyTypeLabels, tripAnomalyStatusLabels } from "@/lib/labels";
 
 export default async function DashboardPage() {
   const user = await getSessionUser();
@@ -94,7 +94,10 @@ export default async function DashboardPage() {
         user.role === "DRIVER"
           ? { trip: { driverId: user.id } }
           : {},
-      include: { trip: { include: { vehicle: true, driver: true } } },
+      include: {
+        trip: { include: { vehicle: true, driver: true } },
+        _count: { select: { photos: true } },
+      },
       orderBy: { createdAt: "desc" },
       take: 5,
     }),
@@ -364,7 +367,7 @@ export default async function DashboardPage() {
           </Card>
         </Link>
 
-        <Link href="/viaggi">
+        <Link href="/segnalazioni">
           <Card className="h-full transition-colors hover:bg-muted/50 cursor-pointer">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-orange-600">
@@ -383,7 +386,8 @@ export default async function DashboardPage() {
                         {a.trip.vehicle.plate} · {tripAnomalyTypeLabels[a.type] || a.type}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {a.message} · {format(a.createdAt, "dd/MM HH:mm", { locale: it })}
+                        {a.message} · {tripAnomalyStatusLabels[a.status] || a.status}
+                        {a._count.photos > 0 ? ` · ${a._count.photos} foto` : ""} · {format(a.createdAt, "dd/MM HH:mm", { locale: it })}
                       </div>
                     </li>
                   ))}
