@@ -424,7 +424,13 @@ export async function stopTrip(
           },
         });
       }
-    } catch {
+    } catch (error) {
+      console.error("Trip photo upload failed", {
+        tripId: closedTripId,
+        vehicleId: tripVehicleId,
+        uploadDir: resolveUploadDir(),
+        error,
+      });
       return { error: "Viaggio chiuso, ma upload foto non riuscito. Riprova dal dettaglio mezzo." };
     }
   }

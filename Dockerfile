@@ -12,6 +12,7 @@ RUN npm run build
 FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+RUN apk add --no-cache su-exec
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 RUN npm install prisma@6.19.2
@@ -26,7 +27,6 @@ COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 
 RUN mkdir -p /app/uploads && chown -R nextjs:nodejs /app/uploads /app/docker-entrypoint.sh && chmod +x /app/docker-entrypoint.sh
 
-USER nextjs
 EXPOSE ${PORT:-3000}
 ENV PORT=${PORT:-3000}
 ENV HOSTNAME="0.0.0.0"
