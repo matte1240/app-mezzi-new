@@ -14,7 +14,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
-RUN npm install -g prisma@6.19.2
+RUN npm install prisma@6.19.2
 
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./

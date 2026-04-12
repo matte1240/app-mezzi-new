@@ -5,7 +5,7 @@ MAX_RETRIES=20
 RETRY=0
 
 echo "Applying Prisma migrations..."
-until prisma migrate deploy --schema=/app/prisma/schema.prisma; do
+until npx prisma migrate deploy --schema=/app/prisma/schema.prisma; do
   RETRY=$((RETRY + 1))
   if [ "$RETRY" -ge "$MAX_RETRIES" ]; then
     echo "Prisma migrations failed after $MAX_RETRIES attempts"
