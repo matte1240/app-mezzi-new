@@ -94,11 +94,6 @@ export async function startTrip(
   }
 
   const startQrRaw = parsed.data.startQrRaw?.trim() || "";
-  const scannedVehicleId = startQrRaw ? extractVehicleIdFromQr(startQrRaw) : null;
-
-  if (scannedVehicleId && scannedVehicleId !== parsed.data.vehicleId) {
-    return { error: "Il QR non corrisponde al mezzo selezionato" };
-  }
 
   const vehicle = await prisma.vehicle.findUnique({
     where: { id: parsed.data.vehicleId },
