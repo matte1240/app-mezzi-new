@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { TripAnomalyStatusForm } from "@/components/trip-anomaly-status-form";
+import { TripAnomalyMaintenanceCard } from "@/components/trip-anomaly-maintenance-card";
 
 function formatDateTime(value: Date) {
   return `${value.toLocaleDateString("it-IT")} ${value.toLocaleTimeString("it-IT", {
@@ -72,6 +73,22 @@ type AnomalyDetailPayload = {
     sizeBytes: number;
     createdAt: Date;
   }>;
+  plannedMaintenances: Array<{
+    id: string;
+    status: "PLANNED" | "COMPLETED" | "CANCELLED";
+    scheduledDate: Date;
+    description: string;
+    vehicleId: string;
+    vehicle: {
+      plate: string;
+    };
+  }>;
+  maintenanceInterventions: Array<{
+    id: string;
+    date: Date;
+    km: number;
+    description: string;
+  }>;
 };
 
 export default async function SegnalazioneDetailPage({
@@ -117,6 +134,26 @@ export default async function SegnalazioneDetailPage({
         },
         orderBy: { createdAt: "desc" },
       },
+      plannedMaintenances: {
+        select: {
+          id: true,
+          status: true,
+          scheduledDate: true,
+          description: true,
+          vehicleId: true,
+          vehicle: { select: { plate: true } },
+        },
+        orderBy: [{ status: "asc" }, { scheduledDate: "desc" }],
+      },
+      maintenanceInterventions: {
+        select: {
+          id: true,
+          date: true,
+          km: true,
+          description: true,
+        },
+        orderBy: { date: "desc" },
+      },
     },
   });
 
@@ -133,6 +170,20 @@ export default async function SegnalazioneDetailPage({
   const canManage = canManageTripAnomalies(user.role);
   const distanceKm =
     anomaly.trip.endKm != null ? anomaly.trip.endKm - anomaly.trip.startKm : null;
+  const linkedPlanned = anomaly.plannedMaintenances.map((item) => ({
+    id: item.id,
+    status: item.status,
+    scheduledDate: item.scheduledDate.toISOString(),
+    description: item.description,
+    vehicleId: item.vehicleId,
+    vehiclePlate: item.vehicle.plate,
+  }));
+  const linkedMaintenance = anomaly.maintenanceInterventions.map((item) => ({
+    id: item.id,
+    date: item.date.toISOString(),
+    km: item.km,
+    description: item.description,
+  }));
 
   return (
     <div className="space-y-6">
@@ -307,6 +358,18 @@ export default async function SegnalazioneDetailPage({
                   Solo amministratori e fleet manager possono aggiornare lo stato.
                 </p>
               )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <TripAnomalyMaintenanceCard
+                anomalyId={anomaly.id}
+                currentStatus={anomaly.status}
+                canManage={canManage}
+                linkedPlanned={linkedPlanned}
+                linkedMaintenance={linkedMaintenance}
+              />
             </CardContent>
           </Card>
         </div>

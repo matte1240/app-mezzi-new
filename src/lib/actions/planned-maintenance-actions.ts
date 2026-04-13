@@ -27,14 +27,56 @@ export async function createPlannedMaintenance(
     return { error: "Sessione non valida. Effettua nuovamente il login." };
   }
 
-  await prisma.plannedMaintenance.create({
-    data: {
-      ...parsed.data,
-      createdById: user.id,
-    },
+  if (parsed.data.sourceDeadlineId) {
+    const existingDeadlinePlan = await prisma.plannedMaintenance.findFirst({
+      where: {
+        sourceDeadlineId: parsed.data.sourceDeadlineId,
+        status: "PLANNED",
+      },
+    });
+    if (existingDeadlinePlan) {
+      return { error: "Esiste gia un intervento pianificato per questa scadenza" };
+    }
+  }
+
+  if (parsed.data.sourceTripAnomalyId) {
+    const existingAnomalyPlan = await prisma.plannedMaintenance.findFirst({
+      where: {
+        sourceTripAnomalyId: parsed.data.sourceTripAnomalyId,
+        status: "PLANNED",
+      },
+    });
+    if (existingAnomalyPlan) {
+      return { error: "Esiste gia un intervento pianificato per questa segnalazione" };
+    }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.plannedMaintenance.create({
+      data: {
+        ...parsed.data,
+        createdById: user.id,
+      },
+    });
+
+    if (parsed.data.sourceTripAnomalyId) {
+      await tx.tripAnomaly.updateMany({
+        where: {
+          id: parsed.data.sourceTripAnomalyId,
+          status: "OPEN",
+        },
+        data: {
+          status: "IN_REVIEW",
+        },
+      });
+    }
   });
 
   revalidatePath("/interventi");
+  revalidatePath("/segnalazioni");
+  if (parsed.data.sourceTripAnomalyId) {
+    revalidatePath(`/segnalazioni/${parsed.data.sourceTripAnomalyId}`);
+  }
   return { success: true };
 }
 
@@ -80,6 +122,89 @@ const deadlineToMaintenanceType: Record<string, string> = {
   ALTRO: "ALTRO",
 };
 
+const anomalyToMaintenanceType: Record<string, "TAGLIANDO" | "REVISIONE" | "RIPARAZIONE" | "CAMBIO_GOMME" | "ALTRO"> = {
+  LONG_DURATION: "ALTRO",
+  EXCESSIVE_DISTANCE: "ALTRO",
+  HIGH_AVERAGE_SPEED: "ALTRO",
+  KM_INVARIATO: "ALTRO",
+  MANUAL: "RIPARAZIONE",
+};
+
+export async function createPlannedMaintenanceFromTripAnomaly(
+  _prevState: { error?: string; success?: string } | undefined,
+  formData: FormData
+) {
+  const user = await getSessionUser();
+  if (!canManageDeadlines(user.role)) {
+    return { error: "Non autorizzato" };
+  }
+
+  const anomalyId = (formData.get("anomalyId") as string | null)?.trim();
+  if (!anomalyId) {
+    return { error: "Segnalazione non valida" };
+  }
+
+  const anomaly = await prisma.tripAnomaly.findUnique({
+    where: { id: anomalyId },
+    include: {
+      trip: {
+        include: {
+          vehicle: { select: { plate: true } },
+        },
+      },
+    },
+  });
+
+  if (!anomaly) {
+    return { error: "Segnalazione non trovata" };
+  }
+
+  if (anomaly.status === "RESOLVED") {
+    return { error: "La segnalazione e gia risolta" };
+  }
+
+  const existingPlan = await prisma.plannedMaintenance.findFirst({
+    where: {
+      sourceTripAnomalyId: anomaly.id,
+      status: "PLANNED",
+    },
+  });
+
+  if (existingPlan) {
+    return { error: "Esiste gia un intervento pianificato per questa segnalazione" };
+  }
+
+  const scheduledDate = new Date();
+  scheduledDate.setHours(0, 0, 0, 0);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.plannedMaintenance.create({
+      data: {
+        vehicleId: anomaly.trip.vehicleId,
+        createdById: user.id,
+        type: anomalyToMaintenanceType[anomaly.type] ?? "ALTRO",
+        scheduledDate,
+        description: `Da segnalazione ${anomaly.trip.vehicle.plate}: ${anomaly.message}`,
+        sourceTripAnomalyId: anomaly.id,
+      },
+    });
+
+    if (anomaly.status === "OPEN") {
+      await tx.tripAnomaly.update({
+        where: { id: anomaly.id },
+        data: { status: "IN_REVIEW" },
+      });
+    }
+  });
+
+  revalidatePath("/segnalazioni");
+  revalidatePath(`/segnalazioni/${anomaly.id}`);
+  revalidatePath("/interventi");
+  revalidatePath("/");
+
+  return { success: "Intervento pianificato dalla segnalazione" };
+}
+
 export async function planFromDeadline(deadlineId: string) {
   const user = await getSessionUser();
   if (!canManageDeadlines(user.role)) {
@@ -97,6 +222,17 @@ export async function planFromDeadline(deadlineId: string) {
     return { error: "Sessione non valida. Effettua nuovamente il login." };
   }
 
+  const existingPlan = await prisma.plannedMaintenance.findFirst({
+    where: {
+      sourceDeadlineId: deadline.id,
+      status: "PLANNED",
+    },
+  });
+
+  if (existingPlan) {
+    return { error: "Esiste gia un intervento pianificato per questa scadenza" };
+  }
+
   await prisma.plannedMaintenance.create({
     data: {
       vehicleId: deadline.vehicleId,
@@ -104,6 +240,7 @@ export async function planFromDeadline(deadlineId: string) {
       type: (deadlineToMaintenanceType[deadline.type] || "ALTRO") as "TAGLIANDO" | "REVISIONE" | "RIPARAZIONE" | "CAMBIO_GOMME" | "ALTRO",
       scheduledDate: deadline.dueDate,
       description: deadline.description || `${deadline.type} — ${deadline.vehicle.plate}`,
+      sourceDeadlineId: deadline.id,
     },
   });
 
@@ -141,19 +278,22 @@ export async function completePlannedMaintenance(
     return { error: "Intervento pianificato non trovato" };
   }
 
-  // Create maintenance and update planned status
-  await prisma.$transaction([
-    prisma.maintenanceIntervention.create({
+  const maintenance = await prisma.$transaction(async (tx) => {
+    const createdMaintenance = await tx.maintenanceIntervention.create({
       data: {
         ...parsed.data,
         userId: user.id,
+        sourceTripAnomalyId: planned.sourceTripAnomalyId,
       },
-    }),
-    prisma.plannedMaintenance.update({
+    });
+
+    await tx.plannedMaintenance.update({
       where: { id: plannedId },
       data: { status: "COMPLETED" },
-    }),
-  ]);
+    });
+
+    return createdMaintenance;
+  });
 
   if (parsed.data.type === "TAGLIANDO") {
     await syncTagliandoDeadline(parsed.data.vehicleId, {
@@ -168,9 +308,36 @@ export async function completePlannedMaintenance(
     });
   }
 
+  if (planned.sourceTripAnomalyId) {
+    const linkedAnomaly = await prisma.tripAnomaly.findUnique({
+      where: { id: planned.sourceTripAnomalyId },
+      select: { id: true, status: true },
+    });
+
+    if (linkedAnomaly && linkedAnomaly.status !== "RESOLVED") {
+      const maintenanceDateLabel = parsed.data.date.toLocaleDateString("it-IT");
+      const fallbackResolutionNotes = `Risolta con intervento registrato il ${maintenanceDateLabel} (${parsed.data.km.toLocaleString("it-IT")} km).`;
+      const resolutionNotes = parsed.data.notes?.trim() || parsed.data.description || fallbackResolutionNotes;
+
+      await prisma.tripAnomaly.update({
+        where: { id: linkedAnomaly.id },
+        data: {
+          status: "RESOLVED",
+          resolvedAt: new Date(),
+          resolvedByUserId: user.id,
+          resolutionNotes,
+        },
+      });
+    }
+
+    revalidatePath("/segnalazioni");
+    revalidatePath(`/segnalazioni/${planned.sourceTripAnomalyId}`);
+  }
+
   revalidatePath("/interventi");
   revalidatePath(`/mezzi/${parsed.data.vehicleId}`);
   revalidatePath("/scadenze");
   revalidatePath("/");
+  void maintenance;
   return { success: true };
 }

@@ -39,6 +39,10 @@ export default async function InterventiPage() {
     vehicleId: m.vehicleId,
     vehiclePlate: m.vehicle.plate,
     userName: m.user.name,
+    sourceTripAnomalyId:
+      "sourceTripAnomalyId" in m
+        ? ((m.sourceTripAnomalyId as string | null | undefined) ?? null)
+        : null,
   }));
 
   // Latest km per vehicle (for both forms)
@@ -68,6 +72,14 @@ export default async function InterventiPage() {
     notes: p.notes,
     status: p.status,
     createdByName: p.createdBy.name,
+    sourceTripAnomalyId:
+      "sourceTripAnomalyId" in p
+        ? ((p.sourceTripAnomalyId as string | null | undefined) ?? null)
+        : null,
+    sourceDeadlineId:
+      "sourceDeadlineId" in p
+        ? ((p.sourceDeadlineId as string | null | undefined) ?? null)
+        : null,
   }));
 
   const vehicleOptions: VehicleOption[] = vehicles.map((v) => ({

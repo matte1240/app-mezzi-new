@@ -48,6 +48,22 @@ export default async function ScadenzePage({
     orderBy: { dueDate: "asc" },
   });
 
+  const deadlineIds = deadlines.map((d) => d.id);
+  const plannedByDeadline = deadlineIds.length
+    ? await prisma.plannedMaintenance.findMany({
+        where: {
+          sourceDeadlineId: { in: deadlineIds },
+          status: "PLANNED",
+        },
+        select: { sourceDeadlineId: true },
+      })
+    : [];
+  const deadlineWithPlanned = new Set(
+    plannedByDeadline
+      .map((item) => item.sourceDeadlineId)
+      .filter((value): value is string => Boolean(value))
+  );
+
   const vehicles = canManage
     ? await prisma.vehicle.findMany({
         where: { ...whereVehicle, status: "ACTIVE" },
@@ -113,6 +129,7 @@ export default async function ScadenzePage({
       description: d.description,
       completed: d.completed,
       status: getStatus(d),
+      hasPlannedMaintenance: deadlineWithPlanned.has(d.id),
     }));
   }
 

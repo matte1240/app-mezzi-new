@@ -32,6 +32,7 @@ export type InterventoItem = {
   vehicleId: string;
   vehiclePlate: string;
   userName: string;
+  sourceTripAnomalyId: string | null;
 };
 
 export type PlannedItem = {
@@ -46,6 +47,8 @@ export type PlannedItem = {
   notes: string | null;
   status: string;
   createdByName: string;
+  sourceTripAnomalyId: string | null;
+  sourceDeadlineId: string | null;
 };
 
 export type VehicleOption = {
@@ -255,13 +258,14 @@ function StoricoTab({
               <TableHead>Costo</TableHead>
               <TableHead>Officina</TableHead>
               <TableHead>Descrizione</TableHead>
+              <TableHead>Origine</TableHead>
               <TableHead>Operatore</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                   Nessun intervento trovato
                 </TableCell>
               </TableRow>
@@ -295,6 +299,15 @@ function StoricoTab({
                   </TableCell>
                   <TableCell className="max-w-xs truncate">
                     {m.description}
+                  </TableCell>
+                  <TableCell>
+                    {m.sourceTripAnomalyId ? (
+                      <Link href={`/segnalazioni/${m.sourceTripAnomalyId}`}>
+                        <Badge variant="outline" className="hover:bg-muted/40">Da segnalazione</Badge>
+                      </Link>
+                    ) : (
+                      <span className="text-muted-foreground">Manuale</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {m.userName}
@@ -454,6 +467,7 @@ function PianificatiTab({
               <TableHead>Tipo</TableHead>
               <TableHead>Descrizione</TableHead>
               <TableHead>Officina</TableHead>
+              <TableHead>Origine</TableHead>
               <TableHead>Creato da</TableHead>
               {canManage && <TableHead className="text-right">Azioni</TableHead>}
             </TableRow>
@@ -461,7 +475,7 @@ function PianificatiTab({
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={canManage ? 7 : 6} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={canManage ? 8 : 7} className="text-center text-muted-foreground py-8">
                   Nessun intervento pianificato
                 </TableCell>
               </TableRow>
@@ -490,6 +504,21 @@ function PianificatiTab({
                       </TableCell>
                       <TableCell className="max-w-[200px] truncate">{item.description}</TableCell>
                       <TableCell>{item.garage || "—"}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap items-center gap-1">
+                          {item.sourceTripAnomalyId ? (
+                            <Link href={`/segnalazioni/${item.sourceTripAnomalyId}`}>
+                              <Badge variant="outline" className="hover:bg-muted/40">Segnalazione</Badge>
+                            </Link>
+                          ) : null}
+                          {item.sourceDeadlineId ? (
+                            <Badge variant="outline">Scadenza</Badge>
+                          ) : null}
+                          {!item.sourceTripAnomalyId && !item.sourceDeadlineId ? (
+                            <span className="text-muted-foreground">Manuale</span>
+                          ) : null}
+                        </div>
+                      </TableCell>
                       <TableCell>{item.createdByName}</TableCell>
                       {canManage && (
                         <TableCell className="text-right">

@@ -23,6 +23,7 @@ export type DeadlineItem = {
   description: string | null;
   completed: boolean;
   status: string;
+  hasPlannedMaintenance: boolean;
 };
 
 const statusBadge: Record<string, { label: string; className: string }> = {
@@ -132,9 +133,16 @@ export function DeadlineTableClient({
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className={`h-8 w-8 ${isExpanded ? "text-blue-800 bg-blue-100" : "text-blue-600"}`}
-                            title="Pianifica intervento"
+                            className={`h-8 w-8 ${
+                              d.hasPlannedMaintenance
+                                ? "text-muted-foreground"
+                                : isExpanded
+                                  ? "text-blue-800 bg-blue-100"
+                                  : "text-blue-600"
+                            }`}
+                            title={d.hasPlannedMaintenance ? "Intervento gia pianificato" : "Pianifica intervento"}
                             onClick={() => setExpandedId(isExpanded ? null : d.id)}
+                            disabled={d.hasPlannedMaintenance}
                           >
                             {isExpanded ? (
                               <ChevronUp className="h-4 w-4" />
@@ -164,6 +172,7 @@ export function DeadlineTableClient({
                   <TableRow className="bg-blue-50/40 hover:bg-blue-50/60">
                     <TableCell colSpan={colSpan} className="p-0">
                       <PlanRow
+                        deadlineId={d.id}
                         vehicleId={d.vehicleId}
                         vehiclePlate={d.vehiclePlate}
                         deadlineType={d.type}
@@ -171,6 +180,13 @@ export function DeadlineTableClient({
                         description={d.description}
                         onClose={() => setExpandedId(null)}
                       />
+                    </TableCell>
+                  </TableRow>
+                )}
+                {d.hasPlannedMaintenance && !d.completed && (
+                  <TableRow>
+                    <TableCell colSpan={colSpan} className="pt-0 pb-3 text-right text-xs text-muted-foreground">
+                      Intervento gia pianificato da questa scadenza.
                     </TableCell>
                   </TableRow>
                 )}
@@ -184,6 +200,7 @@ export function DeadlineTableClient({
 }
 
 function PlanRow({
+  deadlineId,
   vehicleId,
   vehiclePlate,
   deadlineType,
@@ -191,6 +208,7 @@ function PlanRow({
   description,
   onClose,
 }: {
+  deadlineId: string;
   vehicleId: string;
   vehiclePlate: string;
   deadlineType: string;
@@ -222,6 +240,7 @@ function PlanRow({
   return (
     <form action={formAction} className="px-4 py-3">
       <input type="hidden" name="vehicleId" value={vehicleId} />
+      <input type="hidden" name="sourceDeadlineId" value={deadlineId} />
       <div className="flex flex-col gap-4 max-w-full w-full">
         {/* Riga 1: Tipo + Data */}
         <div className="flex flex-col md:flex-row gap-4">

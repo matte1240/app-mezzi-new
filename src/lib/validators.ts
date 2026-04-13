@@ -99,6 +99,8 @@ export type UserInput = z.infer<typeof userSchema>;
 
 export const plannedMaintenanceSchema = z.object({
   vehicleId: z.string().min(1),
+  sourceDeadlineId: z.string().optional().nullable(),
+  sourceTripAnomalyId: z.string().optional().nullable(),
   type: z.enum([
     "TAGLIANDO",
     "REVISIONE",
