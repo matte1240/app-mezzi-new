@@ -1,18 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useMemo } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Camera, Plus, Search, TriangleAlert } from "lucide-react";
+import { SubmitButton } from "@/components/ui/submit-button";
 import {
   tripStatusLabels,
   tripAnomalyTypeLabels,
   tripAnomalyStatusLabels,
 } from "@/lib/labels";
+import { deleteTrip, updateTrip } from "@/lib/actions/trip-actions";
+import { useRouter } from "next/navigation";
 
 export type TripListItem = {
   id: string;
@@ -52,9 +56,19 @@ function formatDateTime(iso: string) {
   });
 }
 
-export function TripsDesktopList({ trips }: { trips: TripListItem[] }) {
+function toDateTimeLocal(iso: string | null) {
+  if (!iso) return "";
+  const date = new Date(iso);
+  const timezoneOffset = date.getTimezoneOffset();
+  const localDate = new Date(date.getTime() - timezoneOffset * 60 * 1000);
+  return localDate.toISOString().slice(0, 16);
+}
+
+export function TripsDesktopList({ trips, canEditDelete = false }: { trips: TripListItem[]; canEditDelete?: boolean }) {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     let result = trips;
@@ -85,6 +99,20 @@ export function TripsDesktopList({ trips }: { trips: TripListItem[] }) {
   const openCount = trips.filter((t) => t.status === "OPEN").length;
   const completedCount = trips.filter((t) => t.status === "COMPLETED").length;
   const anomalyCount = trips.filter((t) => t.anomalies.length > 0).length;
+
+  async function handleDelete(tripId: string) {
+    if (!confirm("Eliminare definitivamente questo viaggio?")) {
+      return;
+    }
+
+    const result = await deleteTrip(tripId);
+    if (result?.error) {
+      alert(result.error);
+      return;
+    }
+
+    router.refresh();
+  }
 
   return (
     <div className="space-y-6">
@@ -170,17 +198,29 @@ export function TripsDesktopList({ trips }: { trips: TripListItem[] }) {
                 <TableHead className="text-right">Km</TableHead>
                 <TableHead>Anomalie</TableHead>
                 <TableHead>Note</TableHead>
+                {canEditDelete ? <TableHead className="text-right">Azioni</TableHead> : null}
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-8 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={canEditDelete ? 9 : 8} className="py-8 text-center text-sm text-muted-foreground">
                     Nessun viaggio trovato
                   </TableCell>
                 </TableRow>
               ) : (
                 filtered.map((trip) => {
+                  if (editingId === trip.id) {
+                    return (
+                      <TripEditRow
+                        key={trip.id}
+                        trip={trip}
+                        colSpan={canEditDelete ? 9 : 8}
+                        onCancel={() => setEditingId(null)}
+                      />
+                    );
+                  }
+
                   const distance =
                     trip.endKm != null ? trip.endKm - trip.startKm : null;
 
@@ -240,6 +280,18 @@ export function TripsDesktopList({ trips }: { trips: TripListItem[] }) {
                       <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
                         {trip.notes || "—"}
                       </TableCell>
+                      {canEditDelete ? (
+                        <TableCell className="text-right">
+                          <div className="inline-flex items-center gap-1">
+                            <Button type="button" variant="outline" size="sm" onClick={() => setEditingId(trip.id)}>
+                              Modifica
+                            </Button>
+                            <Button type="button" variant="destructive" size="sm" onClick={() => handleDelete(trip.id)}>
+                              Elimina
+                            </Button>
+                          </div>
+                        </TableCell>
+                      ) : null}
                     </TableRow>
                   );
                 })
@@ -249,5 +301,117 @@ export function TripsDesktopList({ trips }: { trips: TripListItem[] }) {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function TripEditRow({
+  trip,
+  colSpan,
+  onCancel,
+}: {
+  trip: TripListItem;
+  colSpan: number;
+  onCancel: () => void;
+}) {
+  const router = useRouter();
+  const [status, setStatus] = useState<"OPEN" | "COMPLETED" | "ABANDONED">(trip.status as "OPEN" | "COMPLETED" | "ABANDONED");
+  const [state, formAction] = useActionState(updateTrip, { error: "", success: "" });
+
+  useEffect(() => {
+    if (state?.success) {
+      onCancel();
+      router.refresh();
+    }
+  }, [state?.success, onCancel, router]);
+
+  return (
+    <TableRow>
+      <TableCell colSpan={colSpan} className="bg-muted/30 p-0 border-l-4 border-l-blue-500">
+        <div className="p-4 w-full">
+          <form action={formAction} className="flex flex-col gap-4">
+            <input type="hidden" name="tripId" value={trip.id} />
+
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium">Stato</label>
+                <select
+                  name="status"
+                  defaultValue={trip.status}
+                  onChange={(event) => setStatus(event.target.value as "OPEN" | "COMPLETED" | "ABANDONED")}
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  required
+                >
+                  <option value="OPEN">In corso</option>
+                  <option value="COMPLETED">Completato</option>
+                  <option value="ABANDONED">Interrotto</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium">Data/Ora inizio</label>
+                <input
+                  type="datetime-local"
+                  name="startTime"
+                  defaultValue={toDateTimeLocal(trip.startTime)}
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  required
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium">Km inizio</label>
+                <input
+                  type="number"
+                  name="startKm"
+                  defaultValue={trip.startKm}
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  required
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium">Data/Ora fine</label>
+                <input
+                  type="datetime-local"
+                  name="endTime"
+                  defaultValue={toDateTimeLocal(trip.endTime)}
+                  disabled={status === "OPEN"}
+                  required={status !== "OPEN"}
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium">Km fine</label>
+                <input
+                  type="number"
+                  name="endKm"
+                  defaultValue={trip.endKm ?? ""}
+                  disabled={status === "OPEN"}
+                  required={status !== "OPEN"}
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5 md:col-span-2 xl:col-span-1">
+                <label className="text-xs font-medium">Note</label>
+                <input
+                  type="text"
+                  name="notes"
+                  defaultValue={trip.notes || ""}
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <SubmitButton pendingText="Salvataggio...">Salva modifiche</SubmitButton>
+              <Button type="button" variant="outline" onClick={onCancel}>Annulla</Button>
+              {state?.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
+            </div>
+          </form>
+        </div>
+      </TableCell>
+    </TableRow>
   );
 }

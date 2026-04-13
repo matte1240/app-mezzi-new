@@ -1,16 +1,17 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { canRecordTrips, getSessionUser } from "@/lib/auth-utils";
-import { tripStartSchema, tripStopSchema } from "@/lib/validators";
+import { canRecordTrips, canEditDeleteEntries, getSessionUser } from "@/lib/auth-utils";
+import { tripStartSchema, tripStopSchema, tripUpdateSchema } from "@/lib/validators";
 import {
   buildTripAnomalyPhotoStorage,
   createTripAnomalyThumbnail,
+  deriveTripAnomalyThumbnailPath,
   resolveUploadDir,
 } from "@/lib/file-storage";
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, writeFile, unlink } from "fs/promises";
 
 const MAX_ANOMALY_PHOTO_SIZE = 8 * 1024 * 1024;
 const MAX_ANOMALY_PHOTOS = 5;
@@ -456,4 +457,135 @@ export async function stopTrip(
         ? `Viaggio chiuso con ${anomalyCount} anomal${anomalyCount === 1 ? "ia" : "ie"}`
         : "Viaggio chiuso correttamente",
   };
+}
+
+export async function updateTrip(
+  _prevState: { error?: string; success?: string } | undefined,
+  formData: FormData
+): Promise<{ error?: string; success?: string }> {
+  const user = await getSessionUser();
+  if (!canEditDeleteEntries(user.role)) {
+    return { error: "Non autorizzato" };
+  }
+
+  const raw = Object.fromEntries(formData.entries());
+  const parsed = tripUpdateSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0].message };
+  }
+
+  const existingTrip = await prisma.trip.findUnique({
+    where: { id: parsed.data.tripId },
+    select: { id: true, vehicleId: true },
+  });
+
+  if (!existingTrip) {
+    return { error: "Viaggio non trovato" };
+  }
+
+  const updateData: Prisma.TripUpdateInput = {
+    status: parsed.data.status,
+    startTime: parsed.data.startTime,
+    endTime: parsed.data.endTime,
+    startKm: parsed.data.startKm,
+    endKm: parsed.data.endKm,
+    notes: parsed.data.notes || null,
+  };
+
+  if (parsed.data.status === "OPEN") {
+    updateData.endQrRaw = null;
+  }
+
+  await prisma.trip.update({
+    where: { id: existingTrip.id },
+    data: updateData,
+  });
+
+  revalidatePath("/viaggi");
+  revalidatePath("/chilometraggi");
+  revalidatePath(`/mezzi/${existingTrip.vehicleId}`);
+  revalidatePath("/");
+
+  return { success: "Viaggio aggiornato" };
+}
+
+export async function deleteTrip(tripId: string) {
+  const user = await getSessionUser();
+  if (!canEditDeleteEntries(user.role)) {
+    return { error: "Non autorizzato" };
+  }
+
+  const trip = await prisma.trip.findUnique({
+    where: { id: tripId },
+    select: {
+      id: true,
+      vehicleId: true,
+      anomalies: {
+        select: {
+          id: true,
+          photos: {
+            select: {
+              id: true,
+              filePath: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!trip) {
+    return { error: "Viaggio non trovato" };
+  }
+
+  const anomalyIds = trip.anomalies.map((anomaly) => anomaly.id);
+  const photos = trip.anomalies.flatMap((anomaly) => anomaly.photos);
+
+  for (const photo of photos) {
+    try {
+      await unlink(photo.filePath);
+    } catch {
+      // File may already be missing.
+    }
+
+    const thumbnailPath = deriveTripAnomalyThumbnailPath(photo.filePath);
+    if (thumbnailPath) {
+      try {
+        await unlink(thumbnailPath);
+      } catch {
+        // Thumbnail may already be missing.
+      }
+    }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    if (anomalyIds.length > 0) {
+      await tx.document.deleteMany({
+        where: {
+          tripAnomalyId: { in: anomalyIds },
+        },
+      });
+    }
+
+    await tx.mileageReading.deleteMany({
+      where: {
+        vehicleId: trip.vehicleId,
+        source: "TRIP",
+        notes: {
+          contains: trip.id,
+        },
+      },
+    });
+
+    await tx.trip.delete({ where: { id: trip.id } });
+  });
+
+  revalidatePath("/viaggi");
+  revalidatePath("/segnalazioni");
+  revalidatePath("/documenti");
+  revalidatePath("/chilometraggi");
+  revalidatePath(`/mezzi/${trip.vehicleId}`);
+  revalidatePath("/");
+
+  return { success: "Viaggio eliminato" };
 }

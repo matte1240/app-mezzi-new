@@ -1,8 +1,8 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { getSessionUser, canManageDeadlines } from "@/lib/auth-utils";
-import { plannedMaintenanceSchema, maintenanceSchema } from "@/lib/validators";
+import { getSessionUser, canManageDeadlines, canEditDeleteEntries } from "@/lib/auth-utils";
+import { plannedMaintenanceSchema, maintenanceSchema, plannedMaintenanceUpdateSchema } from "@/lib/validators";
 import { syncRevisioneDeadline, syncTagliandoDeadline } from "@/lib/auto-deadlines";
 import { revalidatePath } from "next/cache";
 
@@ -99,7 +99,7 @@ export async function updatePlannedMaintenanceStatus(
   status: "COMPLETED" | "CANCELLED"
 ) {
   const user = await getSessionUser();
-  if (!canManageDeadlines(user.role)) {
+  if (!canEditDeleteEntries(user.role)) {
     return { error: "Non autorizzato" };
   }
 
@@ -117,13 +117,54 @@ export async function updatePlannedMaintenanceStatus(
 
 export async function deletePlannedMaintenance(id: string) {
   const user = await getSessionUser();
-  if (!canManageDeadlines(user.role)) {
+  if (!canEditDeleteEntries(user.role)) {
     return { error: "Non autorizzato" };
   }
 
   await prisma.plannedMaintenance.delete({ where: { id } });
 
   revalidatePath("/interventi");
+  return { success: true };
+}
+
+export async function updatePlannedMaintenance(
+  _prevState: { error?: string; success?: boolean } | undefined,
+  formData: FormData
+) {
+  const user = await getSessionUser();
+  if (!canEditDeleteEntries(user.role)) {
+    return { error: "Non autorizzato" };
+  }
+
+  const raw = Object.fromEntries(formData.entries());
+  const parsed = plannedMaintenanceUpdateSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0].message };
+  }
+
+  const existing = await prisma.plannedMaintenance.findUnique({
+    where: { id: parsed.data.plannedMaintenanceId },
+    select: { id: true, vehicleId: true },
+  });
+
+  if (!existing) {
+    return { error: "Intervento pianificato non trovato" };
+  }
+
+  await prisma.plannedMaintenance.update({
+    where: { id: existing.id },
+    data: {
+      type: parsed.data.type,
+      scheduledDate: parsed.data.scheduledDate,
+      description: parsed.data.description,
+      garage: parsed.data.garage || null,
+      notes: parsed.data.notes || null,
+    },
+  });
+
+  revalidatePath("/interventi");
+  revalidatePath("/");
+  revalidatePath(`/mezzi/${existing.vehicleId}`);
   return { success: true };
 }
 
@@ -285,7 +326,7 @@ export async function completePlannedMaintenance(
   formData: FormData
 ) {
   const user = await getSessionUser();
-  if (!canManageDeadlines(user.role)) {
+  if (!canEditDeleteEntries(user.role)) {
     return { error: "Non autorizzato" };
   }
 

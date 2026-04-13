@@ -45,13 +45,13 @@ const initialState: ActionState = {
 export function TripAnomalyMaintenanceCard({
   anomalyId,
   currentStatus,
-  canManage,
+  canCreate,
   linkedPlanned,
   linkedMaintenance,
 }: {
   anomalyId: string;
   currentStatus: "OPEN" | "IN_REVIEW" | "RESOLVED";
-  canManage: boolean;
+  canCreate: boolean;
   linkedPlanned: LinkedPlannedMaintenanceItem[];
   linkedMaintenance: LinkedMaintenanceItem[];
 }) {
@@ -80,7 +80,7 @@ export function TripAnomalyMaintenanceCard({
         </p>
       </div>
 
-      {canManage ? (
+      {canCreate ? (
         <form action={formAction} className="space-y-3">
           <input type="hidden" name="anomalyId" value={anomalyId} />
           <div className="grid gap-3 sm:grid-cols-2">
@@ -128,7 +128,7 @@ export function TripAnomalyMaintenanceCard({
         </form>
       ) : (
         <p className="text-sm text-muted-foreground">
-          Solo amministratori e fleet manager possono pianificare interventi.
+          Non hai i permessi per pianificare interventi da questa segnalazione.
         </p>
       )}
 

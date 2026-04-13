@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { canRecordTrips, getSessionUser } from "@/lib/auth-utils";
+import { canRecordTrips, getSessionUser, isAdmin } from "@/lib/auth-utils";
 import { TripsMobilePanel, type VehicleTripOption, type OpenTripItem } from "@/components/trips-mobile-panel";
 import { TripsDesktopList, type TripListItem } from "@/components/trips-desktop-list";
 
@@ -111,5 +111,5 @@ export default async function ViaggiPage({
     })),
   }));
 
-  return <TripsDesktopList trips={tripItems} />;
+  return <TripsDesktopList trips={tripItems} canEditDelete={isAdmin(user.role)} />;
 }

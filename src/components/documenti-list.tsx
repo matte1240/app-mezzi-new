@@ -18,6 +18,7 @@ import {
   Download,
   FileText,
   Pencil,
+  Trash2,
   Search,
   Truck,
   ChevronDown,
@@ -97,7 +98,7 @@ function toDateInputValue(value: string | null) {
   return value ? value.slice(0, 10) : "";
 }
 
-export function DocumentiList({ documents, vehicles = [], canUpload = false }: { documents: DocItem[]; vehicles?: VehicleOption[]; canUpload?: boolean }) {
+export function DocumentiList({ documents, vehicles = [], canUpload = false, canEditDelete = false }: { documents: DocItem[]; vehicles?: VehicleOption[]; canUpload?: boolean; canEditDelete?: boolean }) {
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [openVehicles, setOpenVehicles] = useState<Set<string>>(new Set());
@@ -109,6 +110,22 @@ export function DocumentiList({ documents, vehicles = [], canUpload = false }: {
   const [editError, setEditError] = useState("");
   const [uploadMsg, setUploadMsg] = useState<{ error?: string; success?: string }>({});
   const router = useRouter();
+
+  async function handleDelete(documentId: string) {
+    if (!confirm("Eliminare questo documento?")) return;
+
+    try {
+      const res = await fetch(`/api/documents/${documentId}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.error || "Errore durante l'eliminazione");
+        return;
+      }
+      router.refresh();
+    } catch {
+      alert("Errore di rete durante l'eliminazione");
+    }
+  }
 
   const toggle = (vehicleId: string) => {
     setOpenVehicles((prev) => {
@@ -422,7 +439,7 @@ export function DocumentiList({ documents, vehicles = [], canUpload = false }: {
                                           <Download className="h-4 w-4" />
                                         </Button>
                                       </a>
-                                      {canUpload && (
+                                      {canEditDelete && (
                                         <Button
                                           type="button"
                                           variant="ghost"
@@ -434,6 +451,17 @@ export function DocumentiList({ documents, vehicles = [], canUpload = false }: {
                                           }}
                                         >
                                           <Pencil className="h-4 w-4" />
+                                        </Button>
+                                      )}
+                                      {canEditDelete && (
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-8 w-8 text-destructive"
+                                          onClick={() => handleDelete(d.id)}
+                                        >
+                                          <Trash2 className="h-4 w-4" />
                                         </Button>
                                       )}
                                     </div>
@@ -502,6 +530,17 @@ export function DocumentiList({ documents, vehicles = [], canUpload = false }: {
                                               Dettaglio
                                             </Button>
                                           </Link>
+                                        ) : null}
+                                        {canEditDelete ? (
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8 text-destructive"
+                                            onClick={() => handleDelete(photo.id)}
+                                          >
+                                            <Trash2 className="h-4 w-4" />
+                                          </Button>
                                         ) : null}
                                       </div>
                                     </TableCell>

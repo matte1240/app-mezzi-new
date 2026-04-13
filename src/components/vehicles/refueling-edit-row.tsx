@@ -12,10 +12,12 @@ type RefuelingEditItem = {
   liters: number;
   costEur: number;
   fuelType: string;
+  fullTank: boolean;
+  station: string | null;
   notes: string | null;
 };
 
-export function RefuelingEditRow({ item, vehicleId, vehicleFuelType, onCancel }: { item: RefuelingEditItem; vehicleId: string; vehicleFuelType: string; onCancel: () => void }) {
+export function RefuelingEditRow({ item, vehicleId, vehicleFuelType, onCancel, colSpan = 8 }: { item: RefuelingEditItem; vehicleId: string; vehicleFuelType: string; onCancel: () => void; colSpan?: number }) {
   const [state, formAction] = useActionState(updateRefueling, undefined);
 
   useEffect(() => {
@@ -26,12 +28,11 @@ export function RefuelingEditRow({ item, vehicleId, vehicleFuelType, onCancel }:
 
   return (
     <TableRow>
-      <TableCell colSpan={8} className="bg-muted/30 p-0 border-l-4 border-l-blue-500">
+      <TableCell colSpan={colSpan} className="bg-muted/30 p-0 border-l-4 border-l-blue-500">
         <div className="p-4 w-full">
           <form action={formAction} className="flex flex-col gap-4 max-w-full w-full">
             <input type="hidden" name="id" value={item.id} />
             <input type="hidden" name="vehicleId" value={vehicleId} />
-        <input type="hidden" name="fuelType" value={vehicleFuelType} />
             
             <div className="flex flex-col md:flex-row gap-4">
               <div className="flex flex-col gap-1.5 flex-1 min-w-0 w-full">
@@ -58,7 +59,7 @@ export function RefuelingEditRow({ item, vehicleId, vehicleFuelType, onCancel }:
             <div className="flex flex-col md:flex-row gap-4">
               <div className="flex flex-col gap-1.5 flex-1 min-w-0 w-full">
                 <label className="text-xs font-medium whitespace-nowrap">Tipo Carburante *</label>
-                <select name="fuelType" defaultValue={item.fuelType} className="w-full rounded-md border bg-background px-3 py-2 text-sm" required>
+                <select name="fuelType" defaultValue={vehicleFuelType || item.fuelType} className="w-full rounded-md border bg-background px-3 py-2 text-sm" required>
                   <option value="DIESEL">Diesel</option>
                   <option value="GASOLINE">Benzina</option>
                   <option value="ELECTRIC">Elettrico</option>
@@ -68,8 +69,22 @@ export function RefuelingEditRow({ item, vehicleId, vehicleFuelType, onCancel }:
                 </select>
               </div>
               <div className="flex flex-col gap-1.5 flex-1 min-w-0 w-full">
-                <label className="text-xs font-medium whitespace-nowrap">Distributore / Note</label>
+                <label className="text-xs font-medium whitespace-nowrap">Stazione</label>
+                <input type="text" name="station" defaultValue={item.station || ""} className="w-full rounded-md border bg-background px-3 py-2 text-sm" />
+              </div>
+            </div>
+
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex flex-col gap-1.5 flex-1 min-w-0 w-full">
+                <label className="text-xs font-medium whitespace-nowrap">Note</label>
                 <input type="text" name="notes" defaultValue={item.notes || ""} className="w-full rounded-md border bg-background px-3 py-2 text-sm" />
+              </div>
+              <div className="flex flex-col gap-1.5 flex-1 min-w-0 w-full">
+                <label className="text-xs font-medium whitespace-nowrap">Pieno</label>
+                <label className="inline-flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm">
+                  <input type="checkbox" name="fullTank" value="true" defaultChecked={item.fullTank} className="h-4 w-4" />
+                  Serbatoio pieno
+                </label>
               </div>
             </div>
 

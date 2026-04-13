@@ -39,10 +39,12 @@ type MaintenanceRecord = {
 export function MaintenanceTab({
   vehicleId,
   lastKm = 0,
+  canEditDelete = false,
   interventions,
 }: {
   vehicleId: string;
   lastKm?: number;
+  canEditDelete?: boolean;
   interventions: MaintenanceRecord[];
 }) {
   const [showForm, setShowForm] = useState(false);
@@ -156,13 +158,13 @@ export function MaintenanceTab({
               <TableHead>Costo</TableHead>
               <TableHead>Officina</TableHead>
               <TableHead>Descrizione</TableHead>
-              <TableHead className="text-right">Azioni</TableHead>
+              {canEditDelete ? <TableHead className="text-right">Azioni</TableHead> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
             {interventions.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={canEditDelete ? 7 : 6} className="text-center text-muted-foreground py-8">
                   Nessun intervento
                 </TableCell>
               </TableRow>
@@ -193,24 +195,26 @@ export function MaintenanceTab({
                   <TableCell className="max-w-xs truncate">
                     {m.description}
                   </TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger render={<Button variant="ghost" className="h-8 w-8 p-0" />}>
-<span className="sr-only">Apri menu</span>
-<MoreHorizontal className="h-4 w-4" />
-</DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => setExpandedId(m.id)}>
-                          <Edit className="mr-2 h-4 w-4" />
-                          <span>Modifica</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="text-red-600 focus:bg-red-50" onClick={() => handleDelete(m.id)}>
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          <span>Elimina</span>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+                  {canEditDelete ? (
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger render={<Button variant="ghost" className="h-8 w-8 p-0" />}>
+  <span className="sr-only">Apri menu</span>
+  <MoreHorizontal className="h-4 w-4" />
+  </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => setExpandedId(m.id)}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            <span>Modifica</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem className="text-red-600 focus:bg-red-50" onClick={() => handleDelete(m.id)}>
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            <span>Elimina</span>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  ) : null}
                 </TableRow>
               );})
             )}

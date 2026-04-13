@@ -6,7 +6,8 @@ import { prisma } from "@/lib/prisma";
 import {
   getSessionUser,
   canViewTripAnomalies,
-  canManageTripAnomalies,
+  canManageDeadlines,
+  isAdmin,
 } from "@/lib/auth-utils";
 import {
   tripAnomalyTypeLabels,
@@ -169,7 +170,8 @@ export default async function SegnalazioneDetailPage({
     redirect("/segnalazioni");
   }
 
-  const canManage = canManageTripAnomalies(user.role);
+  const canEditDeleteAnomaly = isAdmin(user.role);
+  const canCreatePlannedFromAnomaly = canManageDeadlines(user.role);
   const distanceKm =
     anomaly.trip.endKm != null ? anomaly.trip.endKm - anomaly.trip.startKm : null;
   const linkedPlanned = anomaly.plannedMaintenances.map((item) => ({
@@ -350,15 +352,17 @@ export default async function SegnalazioneDetailPage({
               <CardTitle className="text-base">Workflow stato</CardTitle>
             </CardHeader>
             <CardContent>
-              {canManage ? (
+              {canEditDeleteAnomaly ? (
                 <TripAnomalyStatusForm
                   anomalyId={anomaly.id}
+                  currentType={anomaly.type}
                   currentStatus={anomaly.status}
+                  currentMessage={anomaly.message}
                   initialResolutionNotes={anomaly.resolutionNotes}
                 />
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  Solo amministratori e fleet manager possono aggiornare lo stato.
+                  Solo gli amministratori possono modificare una segnalazione.
                 </p>
               )}
             </CardContent>
@@ -369,7 +373,7 @@ export default async function SegnalazioneDetailPage({
               <TripAnomalyMaintenanceCard
                 anomalyId={anomaly.id}
                 currentStatus={anomaly.status}
-                canManage={canManage}
+                canCreate={canCreatePlannedFromAnomaly}
                 linkedPlanned={linkedPlanned}
                 linkedMaintenance={linkedMaintenance}
               />

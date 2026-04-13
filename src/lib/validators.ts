@@ -81,6 +81,25 @@ export const deadlineSchema = z.object({
   description: z.string().optional().nullable(),
 });
 
+export const manualDeadlineUpdateSchema = z.object({
+  deadlineId: z.string().min(1, "Scadenza non valida"),
+  type: z.enum([
+    "TAGLIANDO",
+    "REVISIONE",
+    "ASSICURAZIONE",
+    "BOLLO",
+    "REVISIONE_TACHIGRAFO",
+    "ALTRO",
+  ]),
+  dueDate: z.coerce.date(),
+  dueKm: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? null : Number(val)),
+    z.number().int("Scadenza km non valida").positive("Scadenza km non valida").nullable()
+  ),
+  reminderDays: z.coerce.number().int().min(1).max(365),
+  description: z.string().optional().nullable(),
+});
+
 export const userSchema = z.object({
   email: z.string().email("Email non valida"),
   name: z.string().min(1, "Nome obbligatorio"),
@@ -115,12 +134,77 @@ export const plannedMaintenanceSchema = z.object({
 });
 export type PlannedMaintenanceInput = z.infer<typeof plannedMaintenanceSchema>;
 
+export const plannedMaintenanceUpdateSchema = z.object({
+  plannedMaintenanceId: z.string().min(1, "Intervento pianificato non valido"),
+  type: z.enum([
+    "TAGLIANDO",
+    "REVISIONE",
+    "RIPARAZIONE",
+    "CAMBIO_GOMME",
+    "ALTRO",
+  ]),
+  scheduledDate: z.coerce.date(),
+  description: z.string().min(1, "Descrizione obbligatoria"),
+  garage: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
+});
+
 export const tripStartSchema = z.object({
   vehicleId: z.string().min(1, "Mezzo obbligatorio"),
   startKm: z.coerce.number().int().positive("Km iniziale non valido"),
   startQrRaw: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
 });
+
+export const tripUpdateSchema = z
+  .object({
+    tripId: z.string().min(1, "Viaggio non valido"),
+    status: z.enum(["OPEN", "COMPLETED", "ABANDONED"]),
+    startTime: z.coerce.date(),
+    endTime: z.preprocess(
+      (val) => (val === "" || val === null || val === undefined ? null : val),
+      z.coerce.date().nullable()
+    ),
+    startKm: z.coerce.number().int().positive("Km iniziale non valido"),
+    endKm: z.preprocess(
+      (val) => (val === "" || val === null || val === undefined ? null : val),
+      z.coerce.number().int().positive("Km finale non valido").nullable()
+    ),
+    notes: z.string().optional().nullable(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.endTime && value.endTime.getTime() < value.startTime.getTime()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "La data/ora di fine non puo essere precedente all'inizio",
+        path: ["endTime"],
+      });
+    }
+
+    if (value.endKm !== null && value.endKm < value.startKm) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Il km finale non puo essere inferiore al km iniziale",
+        path: ["endKm"],
+      });
+    }
+
+    if (value.status === "OPEN" && (value.endTime !== null || value.endKm !== null)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Un viaggio aperto non puo avere data o km di fine",
+        path: ["status"],
+      });
+    }
+
+    if (value.status !== "OPEN" && (value.endTime === null || value.endKm === null)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Per chiudere o interrompere il viaggio servono data e km finali",
+        path: ["status"],
+      });
+    }
+  });
 
 export const tripStopSchema = z.object({
   tripId: z.string().min(1),
@@ -146,6 +230,20 @@ export const tripAnomalyStatusUpdateSchema = z.object({
   ),
 });
 
+export const tripAnomalyUpdateSchema = z.object({
+  anomalyId: z.string().min(1, "Segnalazione non valida"),
+  type: z.enum(["MANUAL", "LONG_DURATION", "EXCESSIVE_DISTANCE", "HIGH_AVERAGE_SPEED", "KM_INVARIATO"]),
+  status: z.enum(["OPEN", "IN_REVIEW", "RESOLVED"]),
+  message: z.string().min(1, "Messaggio obbligatorio").max(1000, "Messaggio troppo lungo"),
+  resolutionNotes: z.preprocess(
+    (val) => (typeof val === "string" && val.trim() === "" ? undefined : val),
+    z.string().max(1000, "Note troppo lunghe").optional().nullable()
+  ),
+});
+
 export type TripStartInput = z.infer<typeof tripStartSchema>;
 export type TripStopInput = z.infer<typeof tripStopSchema>;
 export type TripAnomalyStatusUpdateInput = z.infer<typeof tripAnomalyStatusUpdateSchema>;
+export type TripUpdateInput = z.infer<typeof tripUpdateSchema>;
+export type TripAnomalyUpdateInput = z.infer<typeof tripAnomalyUpdateSchema>;
+export type PlannedMaintenanceUpdateInput = z.infer<typeof plannedMaintenanceUpdateSchema>;

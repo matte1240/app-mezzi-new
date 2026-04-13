@@ -7,19 +7,21 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Search, Plus, ChevronUp, Check, X as XIcon, Trash2, CalendarPlus } from "lucide-react";
+import { Search, Plus, ChevronUp, Check, X as XIcon, Trash2, CalendarPlus, Edit } from "lucide-react";
 import Link from "next/link";
 import {
   maintenanceTypeLabels,
 } from "@/lib/labels";
-import { createMaintenance } from "@/lib/actions/record-actions";
+import { createMaintenance, deleteRecord } from "@/lib/actions/record-actions";
 import {
   createPlannedMaintenance,
   updatePlannedMaintenanceStatus,
   deletePlannedMaintenance,
   completePlannedMaintenance,
+  updatePlannedMaintenance,
 } from "@/lib/actions/planned-maintenance-actions";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { MaintenanceEditRow } from "@/components/vehicles/maintenance-edit-row";
 
 export type InterventoItem = {
   id: string;
@@ -29,6 +31,7 @@ export type InterventoItem = {
   costEur: string | null;
   garage: string | null;
   description: string;
+  notes: string | null;
   vehicleId: string;
   vehiclePlate: string;
   userName: string;
@@ -63,13 +66,15 @@ export function InterventiList({
   vehicles,
   lastKmMap = {},
   plannedItems = [],
-  canManagePlanned = false,
+  canCreatePlanned = false,
+  canEditDelete = false,
 }: {
   interventions: InterventoItem[];
   vehicles: VehicleOption[];
   lastKmMap?: Record<string, number>;
   plannedItems?: PlannedItem[];
-  canManagePlanned?: boolean;
+  canCreatePlanned?: boolean;
+  canEditDelete?: boolean;
 }) {
   const plannedCount = plannedItems.filter((i) => i.status === "PLANNED").length;
 
@@ -95,6 +100,7 @@ export function InterventiList({
             interventions={interventions}
             vehicles={vehicles}
             lastKmMap={lastKmMap}
+            canEditDelete={canEditDelete}
           />
         </TabsContent>
 
@@ -102,7 +108,8 @@ export function InterventiList({
           <PianificatiTab
             items={plannedItems}
             vehicles={vehicles}
-            canManage={canManagePlanned}
+            canCreate={canCreatePlanned}
+            canEditDelete={canEditDelete}
           />
         </TabsContent>
       </Tabs>
@@ -116,13 +123,16 @@ function StoricoTab({
   interventions,
   vehicles,
   lastKmMap,
+  canEditDelete,
 }: {
   interventions: InterventoItem[];
   vehicles: VehicleOption[];
   lastKmMap: Record<string, number>;
+  canEditDelete: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [selectedVehicleId, setSelectedVehicleId] = useState("");
   const [state, formAction] = useActionState(createMaintenance, undefined);
 
@@ -142,6 +152,11 @@ function StoricoTab({
       return q.split(/\s+/).every((w) => haystack.includes(w));
     });
   }, [interventions, query]);
+
+  async function handleDelete(id: string, vehicleId: string) {
+    if (!confirm("Eliminare questo intervento?")) return;
+    await deleteRecord("maintenance", id, vehicleId);
+  }
 
   return (
     <div className="space-y-4 pt-4">
@@ -260,59 +275,101 @@ function StoricoTab({
               <TableHead>Descrizione</TableHead>
               <TableHead>Origine</TableHead>
               <TableHead>Operatore</TableHead>
+              {canEditDelete ? <TableHead className="text-right">Azioni</TableHead> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={canEditDelete ? 10 : 9} className="text-center text-muted-foreground py-8">
                   Nessun intervento trovato
                 </TableCell>
               </TableRow>
             ) : (
               filtered.map((m) => (
-                <TableRow key={m.id}>
-                  <TableCell>
-                    {new Date(m.date).toLocaleDateString("it-IT")}
-                  </TableCell>
-                  <TableCell>
-                    <Link
-                      href={`/mezzi/${m.vehicleId}`}
-                      className="font-mono font-semibold hover:underline"
-                    >
-                      {m.vehiclePlate}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">
-                      {maintenanceTypeLabels[m.type]}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="font-mono">
-                    {m.km.toLocaleString("it-IT")}
-                  </TableCell>
-                  <TableCell>
-                    {m.costEur ? `€${Number(m.costEur).toFixed(2)}` : "—"}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {m.garage || "—"}
-                  </TableCell>
-                  <TableCell className="max-w-xs truncate">
-                    {m.description}
-                  </TableCell>
-                  <TableCell>
-                    {m.sourceTripAnomalyId ? (
-                      <Link href={`/segnalazioni/${m.sourceTripAnomalyId}`}>
-                        <Badge variant="outline" className="hover:bg-muted/40">Da segnalazione</Badge>
+                expandedId === m.id ? (
+                  <MaintenanceEditRow
+                    key={m.id}
+                    item={{
+                      id: m.id,
+                      type: m.type,
+                      date: m.date,
+                      km: m.km,
+                      costEur: m.costEur ? Number(m.costEur) : null,
+                      garage: m.garage,
+                      description: m.description,
+                      notes: m.notes,
+                    }}
+                    vehicleId={m.vehicleId}
+                    colSpan={canEditDelete ? 10 : 9}
+                    onCancel={() => setExpandedId(null)}
+                  />
+                ) : (
+                  <TableRow key={m.id}>
+                    <TableCell>
+                      {new Date(m.date).toLocaleDateString("it-IT")}
+                    </TableCell>
+                    <TableCell>
+                      <Link
+                        href={`/mezzi/${m.vehicleId}`}
+                        className="font-mono font-semibold hover:underline"
+                      >
+                        {m.vehiclePlate}
                       </Link>
-                    ) : (
-                      <span className="text-muted-foreground">Manuale</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {m.userName}
-                  </TableCell>
-                </TableRow>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {maintenanceTypeLabels[m.type]}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="font-mono">
+                      {m.km.toLocaleString("it-IT")}
+                    </TableCell>
+                    <TableCell>
+                      {m.costEur ? `€${Number(m.costEur).toFixed(2)}` : "—"}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {m.garage || "—"}
+                    </TableCell>
+                    <TableCell className="max-w-xs truncate">
+                      {m.description}
+                    </TableCell>
+                    <TableCell>
+                      {m.sourceTripAnomalyId ? (
+                        <Link href={`/segnalazioni/${m.sourceTripAnomalyId}`}>
+                          <Badge variant="outline" className="hover:bg-muted/40">Da segnalazione</Badge>
+                        </Link>
+                      ) : (
+                        <span className="text-muted-foreground">Manuale</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {m.userName}
+                    </TableCell>
+                    {canEditDelete ? (
+                      <TableCell className="text-right">
+                        <div className="inline-flex gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedId(m.id)}
+                            className="rounded p-1 text-blue-600 hover:bg-blue-100"
+                            title="Modifica"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(m.id, m.vehicleId)}
+                            className="rounded p-1 text-red-500 hover:bg-red-100"
+                            title="Elimina"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </TableCell>
+                    ) : null}
+                  </TableRow>
+                )
               ))
             )}
           </TableBody>
@@ -327,15 +384,18 @@ function StoricoTab({
 function PianificatiTab({
   items,
   vehicles,
-  canManage,
+  canCreate,
+  canEditDelete,
 }: {
   items: PlannedItem[];
   vehicles: VehicleOption[];
-  canManage: boolean;
+  canCreate: boolean;
+  canEditDelete: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [state, formAction] = useActionState(createPlannedMaintenance, undefined);
 
   const planned = useMemo(() => items.filter((i) => i.status === "PLANNED"), [items]);
@@ -370,7 +430,7 @@ function PianificatiTab({
         <p className="text-sm text-muted-foreground">
           {filtered.length} interventi in programma
         </p>
-        {canManage && (
+        {canCreate && (
           <button
             type="button"
             onClick={() => setShowForm(!showForm)}
@@ -382,7 +442,7 @@ function PianificatiTab({
         )}
       </div>
 
-      {showForm && canManage && (
+      {showForm && canCreate && (
         <Card>
           <CardHeader className="pb-4">
             <CardTitle className="text-base">Pianifica nuovo intervento</CardTitle>
@@ -469,13 +529,13 @@ function PianificatiTab({
               <TableHead>Officina</TableHead>
               <TableHead>Origine</TableHead>
               <TableHead>Creato da</TableHead>
-              {canManage && <TableHead className="text-right">Azioni</TableHead>}
+              {canEditDelete && <TableHead className="text-right">Azioni</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={canManage ? 8 : 7} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={canEditDelete ? 8 : 7} className="text-center text-muted-foreground py-8">
                   Nessun intervento pianificato
                 </TableCell>
               </TableRow>
@@ -520,9 +580,17 @@ function PianificatiTab({
                         </div>
                       </TableCell>
                       <TableCell>{item.createdByName}</TableCell>
-                      {canManage && (
+                      {canEditDelete && (
                         <TableCell className="text-right">
                           <div className="inline-flex gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setEditingId(editingId === item.id ? null : item.id)}
+                              title="Modifica"
+                              className="rounded p-1 text-blue-600 hover:bg-blue-100"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
                             <button
                               type="button"
                               onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}
@@ -554,6 +622,9 @@ function PianificatiTab({
                     {expandedId === item.id && (
                       <CompleteRow item={item} onCancel={() => setExpandedId(null)} />
                     )}
+                    {editingId === item.id && (
+                      <PlannedEditRow item={item} onCancel={() => setEditingId(null)} />
+                    )}
                   </React.Fragment>
                 );
               })
@@ -562,6 +633,85 @@ function PianificatiTab({
         </Table>
       </div>
     </div>
+  );
+}
+
+/* ───────────── Complete Row (inline form) ───────────── */
+
+function PlannedEditRow({
+  item,
+  onCancel,
+}: {
+  item: PlannedItem;
+  onCancel: () => void;
+}) {
+  const [state, formAction] = useActionState(updatePlannedMaintenance, undefined);
+
+  useEffect(() => {
+    if (state?.success) {
+      onCancel();
+    }
+  }, [state?.success, onCancel]);
+
+  return (
+    <TableRow>
+      <TableCell colSpan={8} className="bg-muted/30 p-0 border-l-4 border-l-blue-500">
+        <div className="p-4 w-full">
+          <form action={formAction} className="flex flex-col gap-4 max-w-full w-full">
+            <input type="hidden" name="plannedMaintenanceId" value={item.id} />
+
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex flex-col gap-1.5 flex-1 min-w-0 w-full">
+                <label className="text-xs font-medium whitespace-nowrap">Tipo *</label>
+                <select name="type" defaultValue={item.type} className="w-full rounded-md border bg-background px-3 py-2 text-sm" required>
+                  {maintenanceTypes.map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1.5 flex-1 min-w-0 w-full">
+                <label className="text-xs font-medium whitespace-nowrap">Data prevista *</label>
+                <input
+                  type="date"
+                  name="scheduledDate"
+                  defaultValue={item.scheduledDate.slice(0, 10)}
+                  required
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex flex-col gap-1.5 flex-1 min-w-0 w-full">
+                <label className="text-xs font-medium whitespace-nowrap">Officina</label>
+                <input type="text" name="garage" defaultValue={item.garage || ""} className="w-full rounded-md border bg-background px-3 py-2 text-sm" />
+              </div>
+              <div className="flex flex-col gap-1.5 flex-1 min-w-0 w-full">
+                <label className="text-xs font-medium whitespace-nowrap">Note</label>
+                <input type="text" name="notes" defaultValue={item.notes || ""} className="w-full rounded-md border bg-background px-3 py-2 text-sm" />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5 min-w-0 w-full">
+              <label className="text-xs font-medium whitespace-nowrap">Descrizione *</label>
+              <input type="text" name="description" defaultValue={item.description} required className="w-full rounded-md border bg-background px-3 py-2 text-sm" />
+            </div>
+
+            <div className="flex items-center gap-3 mt-2">
+              <SubmitButton pendingText="Salvataggio...">Salva Modifiche</SubmitButton>
+              <button
+                type="button"
+                onClick={onCancel}
+                className="text-sm font-medium text-muted-foreground hover:underline"
+              >
+                Annulla
+              </button>
+              {state?.error && <p className="text-sm text-destructive">{state.error}</p>}
+            </div>
+          </form>
+        </div>
+      </TableCell>
+    </TableRow>
   );
 }
 

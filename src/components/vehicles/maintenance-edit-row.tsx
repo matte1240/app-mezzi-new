@@ -16,7 +16,7 @@ type MaintenanceEditItem = {
   notes: string | null;
 };
 
-export function MaintenanceEditRow({ item, vehicleId, onCancel }: { item: MaintenanceEditItem; vehicleId: string; onCancel: () => void }) {
+export function MaintenanceEditRow({ item, vehicleId, onCancel, colSpan = 7 }: { item: MaintenanceEditItem; vehicleId: string; onCancel: () => void; colSpan?: number }) {
   const [state, formAction] = useActionState(updateMaintenance, undefined);
 
   useEffect(() => {
@@ -27,7 +27,7 @@ export function MaintenanceEditRow({ item, vehicleId, onCancel }: { item: Mainte
 
   return (
     <TableRow>
-      <TableCell colSpan={7} className="bg-muted/30 p-0 border-l-4 border-l-blue-500">
+      <TableCell colSpan={colSpan} className="bg-muted/30 p-0 border-l-4 border-l-blue-500">
         <div className="p-4 w-full">
           <form action={formAction} className="flex flex-col gap-4 max-w-full w-full">
             <input type="hidden" name="id" value={item.id} />

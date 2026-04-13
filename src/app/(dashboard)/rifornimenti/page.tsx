@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { getSessionUser } from "@/lib/auth-utils";
+import { getSessionUser, isAdmin } from "@/lib/auth-utils";
 import { RifornimentiList, type RifornimentoItem, type VehicleOptionFuel } from "@/components/rifornimenti-list";
 
 export default async function RifornimentiPage() {
@@ -28,8 +28,10 @@ export default async function RifornimentiPage() {
     km: r.km,
     liters: String(r.liters),
     costEur: String(r.costEur),
+    fullTank: r.fullTank,
     fuelType: r.fuelType,
     station: r.station,
+    notes: r.notes,
     vehicleId: r.vehicleId,
     vehiclePlate: r.vehicle.plate,
     userName: r.user.name,
@@ -52,5 +54,5 @@ export default async function RifornimentiPage() {
     fuelType: v.fuelType,
   }));
 
-  return <RifornimentiList refuelings={items} vehicles={vehicleOptions} lastKmMap={lastKmMap} />;
+  return <RifornimentiList refuelings={items} vehicles={vehicleOptions} lastKmMap={lastKmMap} canEditDelete={isAdmin(user.role)} />;
 }

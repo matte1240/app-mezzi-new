@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { getSessionUser, canUploadDocuments } from "@/lib/auth-utils";
+import { getSessionUser, canUploadDocuments, isAdmin } from "@/lib/auth-utils";
 import { DocumentiList, type DocItem, type VehicleOption } from "@/components/documenti-list";
 
 type DocumentWithAnomaly = {
@@ -32,6 +32,7 @@ type DocumentWithAnomaly = {
 export default async function DocumentiPage() {
   const user = await getSessionUser();
   const canUpload = canUploadDocuments(user.role);
+  const canEditDelete = isAdmin(user.role);
 
   const whereVehicle =
     user.role === "DRIVER" ? { assignedDriverId: user.id } : {};
@@ -90,5 +91,5 @@ export default async function DocumentiPage() {
     plate: v.plate,
   }));
 
-  return <DocumentiList documents={items} vehicles={vehicleOptions} canUpload={canUpload} />;
+  return <DocumentiList documents={items} vehicles={vehicleOptions} canUpload={canUpload} canEditDelete={canEditDelete} />;
 }

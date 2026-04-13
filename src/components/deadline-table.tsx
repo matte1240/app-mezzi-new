@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useActionState, Fragment } from "react";
+import { useState, useActionState, Fragment, useEffect } from "react";
 import Link from "next/link";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -8,9 +8,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { Check, RotateCcw, Trash2, CalendarPlus, ChevronUp } from "lucide-react";
+import { Check, RotateCcw, Trash2, CalendarPlus, ChevronUp, Pencil } from "lucide-react";
 import { deadlineTypeLabels, maintenanceTypeLabels } from "@/lib/labels";
-import { toggleDeadlineComplete, deleteDeadline } from "@/lib/actions/deadline-actions";
+import { toggleDeadlineComplete, deleteDeadline, updateManualDeadline } from "@/lib/actions/deadline-actions";
 import { createPlannedMaintenance } from "@/lib/actions/planned-maintenance-actions";
 
 export type DeadlineItem = {
@@ -20,6 +20,7 @@ export type DeadlineItem = {
   type: string;
   dueDate: string;
   dueKm: number | null;
+  reminderDays: number;
   description: string | null;
   completed: boolean;
   status: string;
@@ -46,15 +47,19 @@ const maintenanceTypes = Object.entries(maintenanceTypeLabels);
 
 export function DeadlineTableClient({
   items,
-  canManage,
+  canPlan,
+  canEditDelete,
   showDelete = false,
 }: {
   items: DeadlineItem[];
-  canManage: boolean;
+  canPlan: boolean;
+  canEditDelete: boolean;
   showDelete?: boolean;
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const colSpan = canManage ? 7 : 6;
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const hasActions = canPlan || canEditDelete;
+  const colSpan = hasActions ? 7 : 6;
 
   return (
     <Table>
@@ -66,7 +71,7 @@ export function DeadlineTableClient({
           <TableHead>Scadenza Km</TableHead>
           <TableHead>Stato</TableHead>
           <TableHead>Descrizione</TableHead>
-          {canManage && <TableHead>Azioni</TableHead>}
+          {hasActions && <TableHead>Azioni</TableHead>}
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -110,25 +115,28 @@ export function DeadlineTableClient({
                   <TableCell className="text-muted-foreground max-w-xs truncate">
                     {d.description || "—"}
                   </TableCell>
-                  {canManage && (
+                  {hasActions && (
                     <TableCell>
                       <div className="flex gap-1">
-                        <form action={async () => { await toggleDeadlineComplete(d.id); }}>
-                          <Button
-                            type="submit"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            title={d.completed ? "Riapri" : "Completa"}
-                          >
-                            {d.completed ? (
-                              <RotateCcw className="h-4 w-4" />
-                            ) : (
-                              <Check className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </form>
-                        {!d.completed && (
+                        {canEditDelete ? (
+                          <form action={async () => { await toggleDeadlineComplete(d.id); }}>
+                            <Button
+                              type="submit"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              title={d.completed ? "Riapri" : "Completa"}
+                            >
+                              {d.completed ? (
+                                <RotateCcw className="h-4 w-4" />
+                              ) : (
+                                <Check className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </form>
+                        ) : null}
+
+                        {canPlan && !d.completed ? (
                           <Button
                             type="button"
                             variant="ghost"
@@ -150,8 +158,22 @@ export function DeadlineTableClient({
                               <CalendarPlus className="h-4 w-4" />
                             )}
                           </Button>
-                        )}
-                        {showDelete && (
+                        ) : null}
+
+                        {showDelete && canEditDelete ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            title="Modifica"
+                            onClick={() => setEditingId(editingId === d.id ? null : d.id)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        ) : null}
+
+                        {showDelete && canEditDelete ? (
                           <form action={async () => { await deleteDeadline(d.id); }}>
                             <Button
                               type="submit"
@@ -163,11 +185,14 @@ export function DeadlineTableClient({
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </form>
-                        )}
+                        ) : null}
                       </div>
                     </TableCell>
                   )}
                 </TableRow>
+                {editingId === d.id && showDelete ? (
+                  <ManualDeadlineEditRow item={d} colSpan={colSpan} onClose={() => setEditingId(null)} />
+                ) : null}
                 {isExpanded && (
                   <TableRow className="bg-blue-50/40 hover:bg-blue-50/60">
                     <TableCell colSpan={colSpan} className="p-0">
@@ -183,7 +208,7 @@ export function DeadlineTableClient({
                     </TableCell>
                   </TableRow>
                 )}
-                {d.hasPlannedMaintenance && !d.completed && (
+                {d.hasPlannedMaintenance && !d.completed && canPlan && (
                   <TableRow>
                     <TableCell colSpan={colSpan} className="pt-0 pb-3 text-right text-xs text-muted-foreground">
                       Intervento gia pianificato da questa scadenza.
@@ -196,6 +221,101 @@ export function DeadlineTableClient({
         )}
       </TableBody>
     </Table>
+  );
+}
+
+function ManualDeadlineEditRow({
+  item,
+  colSpan,
+  onClose,
+}: {
+  item: DeadlineItem;
+  colSpan: number;
+  onClose: () => void;
+}) {
+  const [state, formAction] = useActionState(updateManualDeadline, undefined);
+
+  useEffect(() => {
+    if (state?.success) {
+      onClose();
+    }
+  }, [state?.success, onClose]);
+
+  return (
+    <TableRow>
+      <TableCell colSpan={colSpan} className="bg-muted/30 p-0 border-l-4 border-l-blue-500">
+        <div className="p-4 w-full">
+          <form action={formAction} className="flex flex-col gap-4">
+            <input type="hidden" name="deadlineId" value={item.id} />
+
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium">Tipo</label>
+                <select name="type" defaultValue={item.type} className="w-full rounded-md border bg-background px-3 py-2 text-sm" required>
+                  <option value="TAGLIANDO">Tagliando</option>
+                  <option value="REVISIONE">Revisione</option>
+                  <option value="ASSICURAZIONE">Assicurazione</option>
+                  <option value="BOLLO">Bollo</option>
+                  <option value="REVISIONE_TACHIGRAFO">Rev. Tachigrafo</option>
+                  <option value="ALTRO">Altro</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium">Data scadenza</label>
+                <input
+                  type="date"
+                  name="dueDate"
+                  defaultValue={item.dueDate.slice(0, 10)}
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  required
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium">Scadenza km</label>
+                <input
+                  type="number"
+                  name="dueKm"
+                  defaultValue={item.dueKm ?? ""}
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  placeholder="Opzionale"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium">Preavviso (giorni)</label>
+                <input
+                  type="number"
+                  name="reminderDays"
+                  defaultValue={item.reminderDays}
+                  min={1}
+                  max={365}
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium">Descrizione</label>
+              <input
+                type="text"
+                name="description"
+                defaultValue={item.description || ""}
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+              />
+            </div>
+
+            <div className="flex items-center gap-3">
+              <SubmitButton pendingText="Salvataggio...">Salva modifiche</SubmitButton>
+              <Button type="button" variant="outline" onClick={onClose}>Annulla</Button>
+              {state?.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
+            </div>
+          </form>
+        </div>
+      </TableCell>
+    </TableRow>
   );
 }
 

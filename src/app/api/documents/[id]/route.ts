@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { canUploadDocuments } from "@/lib/auth-utils";
+import { isAdmin } from "@/lib/auth-utils";
 import { syncDocumentValidityDeadline } from "@/lib/auto-deadlines";
 import { unlink } from "fs/promises";
 import { deriveTripAnomalyThumbnailPath } from "@/lib/file-storage";
@@ -37,7 +37,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Non autorizzato" }, { status: 401 });
   }
 
-  if (!canUploadDocuments(session.user.role)) {
+  if (!isAdmin(session.user.role)) {
     return NextResponse.json({ error: "Non autorizzato" }, { status: 403 });
   }
 
@@ -129,7 +129,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Non autorizzato" }, { status: 401 });
   }
 
-  if (!canUploadDocuments(session.user.role)) {
+  if (!isAdmin(session.user.role)) {
     return NextResponse.json({ error: "Non autorizzato" }, { status: 403 });
   }
 

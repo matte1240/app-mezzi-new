@@ -5,11 +5,14 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Search, Plus, ChevronUp } from "lucide-react";
+import { Search, Plus, ChevronUp, MoreHorizontal, Edit, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { fuelLabels } from "@/lib/labels";
-import { createRefueling } from "@/lib/actions/record-actions";
+import { createRefueling, deleteRecord } from "@/lib/actions/record-actions";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { RefuelingEditRow } from "@/components/vehicles/refueling-edit-row";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 
 export type RifornimentoItem = {
   id: string;
@@ -17,8 +20,10 @@ export type RifornimentoItem = {
   km: number;
   liters: string;
   costEur: string;
+  fullTank: boolean;
   fuelType: string;
   station: string | null;
+  notes: string | null;
   vehicleId: string;
   vehiclePlate: string;
   userName: string;
@@ -30,14 +35,20 @@ export type VehicleOptionFuel = {
   fuelType: string;
 };
 
-export function RifornimentiList({ refuelings, vehicles, lastKmMap = {} }: { refuelings: RifornimentoItem[]; vehicles: VehicleOptionFuel[]; lastKmMap?: Record<string, number> }) {
+export function RifornimentiList({ refuelings, vehicles, lastKmMap = {}, canEditDelete = false }: { refuelings: RifornimentoItem[]; vehicles: VehicleOptionFuel[]; lastKmMap?: Record<string, number>; canEditDelete?: boolean }) {
   const [query, setQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [selectedVehicleId, setSelectedVehicleId] = useState("");
   const [state, formAction] = useActionState(createRefueling, undefined);
 
   const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId);
   const lastKm = selectedVehicleId ? lastKmMap[selectedVehicleId] : undefined;
+
+  async function handleDelete(id: string, vehicleId: string) {
+    if (!confirm("Eliminare questo rifornimento?")) return;
+    await deleteRecord("refueling", id, vehicleId);
+  }
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim();
@@ -177,17 +188,41 @@ export function RifornimentiList({ refuelings, vehicles, lastKmMap = {} }: { ref
               <TableHead>Carburante</TableHead>
               <TableHead>Stazione</TableHead>
               <TableHead>Operatore</TableHead>
+              {canEditDelete ? <TableHead className="text-right">Azioni</TableHead> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={canEditDelete ? 10 : 9} className="text-center text-muted-foreground py-8">
                   Nessun rifornimento trovato
                 </TableCell>
               </TableRow>
             ) : (
               filtered.map((r) => {
+                if (expandedId === r.id) {
+                  return (
+                    <RefuelingEditRow
+                      key={r.id}
+                      item={{
+                        id: r.id,
+                        date: r.date,
+                        km: r.km,
+                        liters: Number(r.liters),
+                        costEur: Number(r.costEur),
+                        fuelType: r.fuelType,
+                        fullTank: r.fullTank,
+                        station: r.station,
+                        notes: r.notes,
+                      }}
+                      vehicleId={r.vehicleId}
+                      vehicleFuelType={r.fuelType}
+                      colSpan={canEditDelete ? 10 : 9}
+                      onCancel={() => setExpandedId(null)}
+                    />
+                  );
+                }
+
                 const liters = Number(r.liters);
                 const cost = Number(r.costEur);
                 return (
@@ -218,6 +253,26 @@ export function RifornimentiList({ refuelings, vehicles, lastKmMap = {} }: { ref
                     <TableCell className="text-muted-foreground">
                       {r.userName}
                     </TableCell>
+                    {canEditDelete ? (
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger render={<Button variant="ghost" className="h-8 w-8 p-0" />}>
+                            <span className="sr-only">Apri menu</span>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => setExpandedId(r.id)}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              <span>Modifica</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="text-red-600 focus:bg-red-50" onClick={() => handleDelete(r.id, r.vehicleId)}>
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              <span>Elimina</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    ) : null}
                   </TableRow>
                 );
               })

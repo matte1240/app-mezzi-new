@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { getSessionUser, canManageVehicles, canManageDeadlines, canUploadDocuments } from "@/lib/auth-utils";
+import { getSessionUser, canManageDeadlines, canUploadDocuments, isAdmin } from "@/lib/auth-utils";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -56,9 +56,9 @@ export default async function VehicleDetailPage({
     notFound();
   }
 
-  const canEdit = canManageVehicles(user.role);
-  const canEditDeadlines = canManageDeadlines(user.role);
+  const canCreateDeadlines = canManageDeadlines(user.role);
   const canUpload = canUploadDocuments(user.role);
+  const canEditDelete = isAdmin(user.role);
 
   const lastKm = vehicle.mileageReadings[0]?.km || 0;
 
@@ -84,7 +84,7 @@ export default async function VehicleDetailPage({
             </p>
           </div>
         </div>
-        {canEdit && (
+        {canEditDelete && (
           <div className="flex gap-2">
             <Link href={`/mezzi/${id}/modifica`}>
               <Button variant="outline" size="sm">
@@ -177,6 +177,7 @@ export default async function VehicleDetailPage({
           <MileageTab
             vehicleId={vehicle.id}
             lastKm={lastKm}
+            canEditDelete={canEditDelete}
             readings={vehicle.mileageReadings.map((r) => ({
               ...r,
               date: r.date.toISOString(),
@@ -190,6 +191,7 @@ export default async function VehicleDetailPage({
             vehicleId={vehicle.id}
             vehicleFuelType={vehicle.fuelType}
             lastKm={lastKm}
+            canEditDelete={canEditDelete}
             refuelings={vehicle.refuelings.map((r) => ({
               ...r,
               date: r.date.toISOString(),
@@ -205,6 +207,7 @@ export default async function VehicleDetailPage({
           <MaintenanceTab
             vehicleId={vehicle.id}
             lastKm={lastKm}
+            canEditDelete={canEditDelete}
             interventions={vehicle.maintenanceInterventions.map((m) => ({
               ...m,
               date: m.date.toISOString(),
@@ -226,7 +229,8 @@ export default async function VehicleDetailPage({
               updatedAt: d.updatedAt.toISOString(),
             }))}
             currentKm={lastKm}
-            canManage={canEditDeadlines}
+            canCreate={canCreateDeadlines}
+            canEditDelete={canEditDelete}
           />
         </TabsContent>
 
@@ -244,6 +248,7 @@ export default async function VehicleDetailPage({
               tripId: d.tripAnomaly?.tripId ?? null,
             }))}
             canUpload={canUpload}
+            canEditDelete={canEditDelete}
           />
         </TabsContent>
       </Tabs>

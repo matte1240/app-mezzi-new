@@ -28,6 +28,14 @@ export function canManageVehicles(role: string) {
   return role === "ADMIN" || role === "FLEET_MANAGER";
 }
 
+export function isAdmin(role: string) {
+  return role === "ADMIN";
+}
+
+export function canEditDeleteEntries(role: string) {
+  return isAdmin(role);
+}
+
 export function canManageUsers(role: string) {
   return role === "ADMIN";
 }

@@ -6,10 +6,13 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Search, Plus, ChevronUp } from "lucide-react";
+import { Search, Plus, ChevronUp, MoreHorizontal, Edit, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { createMileageReading } from "@/lib/actions/record-actions";
+import { createMileageReading, deleteRecord } from "@/lib/actions/record-actions";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { MileageEditRow } from "@/components/vehicles/mileage-edit-row";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 
 export type MileageItem = {
   id: string;
@@ -34,11 +37,17 @@ const sourceLabels: Record<string, string> = {
   TRIP: "Viaggio",
 };
 
-export function ChilometraggiList({ readings, vehicles, lastKmMap = {} }: { readings: MileageItem[]; vehicles: VehicleOption[]; lastKmMap?: Record<string, number> }) {
+export function ChilometraggiList({ readings, vehicles, lastKmMap = {}, canEditDelete = false }: { readings: MileageItem[]; vehicles: VehicleOption[]; lastKmMap?: Record<string, number>; canEditDelete?: boolean }) {
   const [query, setQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [selectedVehicleId, setSelectedVehicleId] = useState("");
   const [state, formAction] = useActionState(createMileageReading, undefined);
+
+  async function handleDelete(id: string, vehicleId: string) {
+    if (!confirm("Eliminare questo rilevamento?")) return;
+    await deleteRecord("mileage", id, vehicleId);
+  }
 
   const lastKm = selectedVehicleId ? lastKmMap[selectedVehicleId] : undefined;
 
@@ -155,42 +164,73 @@ export function ChilometraggiList({ readings, vehicles, lastKmMap = {} }: { read
               <TableHead>Sorgente</TableHead>
               <TableHead>Rilevato da</TableHead>
               <TableHead>Note</TableHead>
+              {canEditDelete ? <TableHead className="text-right">Azioni</TableHead> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={canEditDelete ? 7 : 6} className="text-center text-muted-foreground py-8">
                   Nessun rilevamento trovato
                 </TableCell>
               </TableRow>
             ) : (
               filtered.map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell>
-                    {new Date(r.date).toLocaleDateString("it-IT")}
-                  </TableCell>
-                  <TableCell>
-                    <Link
-                      href={`/mezzi/${r.vehicleId}`}
-                      className="font-mono font-semibold hover:underline"
-                    >
-                      {r.vehiclePlate}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="font-mono">
-                    {r.km.toLocaleString("it-IT")}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{sourceLabels[r.source]}</Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {r.recordedByName}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {r.notes || "—"}
-                  </TableCell>
-                </TableRow>
+                expandedId === r.id ? (
+                  <MileageEditRow
+                    key={r.id}
+                    item={{ id: r.id, date: r.date, km: r.km, source: r.source, notes: r.notes }}
+                    vehicleId={r.vehicleId}
+                    colSpan={canEditDelete ? 7 : 6}
+                    onCancel={() => setExpandedId(null)}
+                  />
+                ) : (
+                  <TableRow key={r.id}>
+                    <TableCell>
+                      {new Date(r.date).toLocaleDateString("it-IT")}
+                    </TableCell>
+                    <TableCell>
+                      <Link
+                        href={`/mezzi/${r.vehicleId}`}
+                        className="font-mono font-semibold hover:underline"
+                      >
+                        {r.vehiclePlate}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="font-mono">
+                      {r.km.toLocaleString("it-IT")}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{sourceLabels[r.source]}</Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {r.recordedByName}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {r.notes || "—"}
+                    </TableCell>
+                    {canEditDelete ? (
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger render={<Button variant="ghost" className="h-8 w-8 p-0" />}>
+                            <span className="sr-only">Apri menu</span>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => setExpandedId(r.id)}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              <span>Modifica</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="text-red-600 focus:bg-red-50" onClick={() => handleDelete(r.id, r.vehicleId)}>
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              <span>Elimina</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    ) : null}
+                  </TableRow>
+                )
               ))
             )}
           </TableBody>

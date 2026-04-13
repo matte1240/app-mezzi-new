@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { getSessionUser, canManageVehicles } from "@/lib/auth-utils";
+import { getSessionUser, canManageVehicles, canEditDeleteEntries } from "@/lib/auth-utils";
 import { vehicleSchema } from "@/lib/validators";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -53,7 +53,7 @@ export async function updateVehicle(
   formData: FormData
 ) {
   const user = await getSessionUser();
-  if (!canManageVehicles(user.role)) {
+  if (!canEditDeleteEntries(user.role)) {
     return { error: "Non autorizzato" };
   }
 
@@ -92,7 +92,7 @@ export async function updateVehicle(
 
 export async function deleteVehicle(vehicleId: string) {
   const user = await getSessionUser();
-  if (!canManageVehicles(user.role)) {
+  if (!canEditDeleteEntries(user.role)) {
     return { error: "Non autorizzato" };
   }
 

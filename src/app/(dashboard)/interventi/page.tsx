@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { getSessionUser, canManageDeadlines } from "@/lib/auth-utils";
+import { getSessionUser, canManageDeadlines, isAdmin } from "@/lib/auth-utils";
 import { InterventiList, type InterventoItem, type PlannedItem, type VehicleOption } from "@/components/interventi-list";
 
 export default async function InterventiPage() {
@@ -36,6 +36,7 @@ export default async function InterventiPage() {
     costEur: m.costEur ? String(m.costEur) : null,
     garage: m.garage,
     description: m.description,
+    notes: m.notes,
     vehicleId: m.vehicleId,
     vehiclePlate: m.vehicle.plate,
     userName: m.user.name,
@@ -93,7 +94,8 @@ export default async function InterventiPage() {
       vehicles={vehicleOptions}
       lastKmMap={lastKmMap}
       plannedItems={plannedItems}
-      canManagePlanned={canManageDeadlines(user.role)}
+      canCreatePlanned={canManageDeadlines(user.role)}
+      canEditDelete={isAdmin(user.role)}
     />
   );
 }

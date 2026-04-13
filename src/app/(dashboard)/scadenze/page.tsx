@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { getSessionUser, canManageDeadlines } from "@/lib/auth-utils";
+import { getSessionUser, canManageDeadlines, isAdmin } from "@/lib/auth-utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { deadlineTypeLabels } from "@/lib/labels";
@@ -15,7 +15,8 @@ export default async function ScadenzePage({
 }) {
   const user = await getSessionUser();
   const params = await searchParams;
-  const canManage = canManageDeadlines(user.role);
+  const canCreate = canManageDeadlines(user.role);
+  const canEditDelete = isAdmin(user.role);
   const now = new Date();
 
   const whereVehicle =
@@ -64,7 +65,7 @@ export default async function ScadenzePage({
       .filter((value): value is string => Boolean(value))
   );
 
-  const vehicles = canManage
+  const vehicles = canCreate
     ? await prisma.vehicle.findMany({
         where: { ...whereVehicle, status: "ACTIVE" },
         select: { id: true, plate: true },
@@ -126,6 +127,7 @@ export default async function ScadenzePage({
       type: d.type,
       dueDate: d.dueDate.toISOString(),
       dueKm: d.dueKm,
+      reminderDays: d.reminderDays,
       description: d.description,
       completed: d.completed,
       status: getStatus(d),
@@ -135,7 +137,7 @@ export default async function ScadenzePage({
 
   return (
     <div className="space-y-6">
-      <DeadlineForm vehicles={vehicles} canManage={canManage} />
+        <DeadlineForm vehicles={vehicles} canCreate={canCreate} />
 
       {/* Filters */}
       <form className="flex flex-wrap gap-3 items-center">
@@ -187,7 +189,7 @@ export default async function ScadenzePage({
           </Badge>
         </div>
         <div className="rounded-lg border bg-card">
-          <DeadlineTableClient items={toItems(filteredAuto)} canManage={canManage} />
+          <DeadlineTableClient items={toItems(filteredAuto)} canPlan={canCreate} canEditDelete={canEditDelete} />
         </div>
       </div>
 
@@ -202,7 +204,7 @@ export default async function ScadenzePage({
             </Badge>
           </div>
           <div className="rounded-lg border bg-card">
-            <DeadlineTableClient items={toItems(filteredManual)} canManage={canManage} showDelete />
+            <DeadlineTableClient items={toItems(filteredManual)} canPlan={canCreate} canEditDelete={canEditDelete} showDelete />
           </div>
         </div>
       )}

@@ -12,7 +12,7 @@ export default async function ModificaMezzoPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await checkRole("ADMIN", "FLEET_MANAGER");
+  await checkRole("ADMIN");
   const { id } = await params;
 
   const vehicle = await prisma.vehicle.findUnique({ where: { id } });

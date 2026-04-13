@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { getSessionUser, canViewTripAnomalies } from "@/lib/auth-utils";
+import { getSessionUser, canViewTripAnomalies, isAdmin } from "@/lib/auth-utils";
 import {
   TripAnomaliesList,
   type TripAnomalyListItem,
@@ -48,8 +48,9 @@ export default async function SegnalazioniPage() {
     isManual: item.isManual,
     createdAt: item.createdAt.toISOString(),
     createdByName: item.createdBy.name || "—",
+    resolutionNotes: item.resolutionNotes,
     photoCount: item._count.photos,
   }));
 
-  return <TripAnomaliesList anomalies={items} />;
+  return <TripAnomaliesList anomalies={items} canEditDelete={isAdmin(user.role)} />;
 }

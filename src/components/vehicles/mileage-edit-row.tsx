@@ -13,7 +13,7 @@ type MileageEditItem = {
   notes: string | null;
 };
 
-export function MileageEditRow({ item, vehicleId, onCancel }: { item: MileageEditItem; vehicleId: string; onCancel: () => void }) {
+export function MileageEditRow({ item, vehicleId, onCancel, colSpan = 6 }: { item: MileageEditItem; vehicleId: string; onCancel: () => void; colSpan?: number }) {
   const [state, formAction] = useActionState(updateMileageReading, undefined);
 
   useEffect(() => {
@@ -24,7 +24,7 @@ export function MileageEditRow({ item, vehicleId, onCancel }: { item: MileageEdi
 
   return (
     <TableRow>
-      <TableCell colSpan={6} className="bg-muted/30 p-0 border-l-4 border-l-blue-500">
+      <TableCell colSpan={colSpan} className="bg-muted/30 p-0 border-l-4 border-l-blue-500">
         <div className="p-4 w-full">
           <form action={formAction} className="flex flex-col gap-4 max-w-full w-full">
             <input type="hidden" name="id" value={item.id} />

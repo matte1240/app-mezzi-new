@@ -70,10 +70,12 @@ export function DocumentTab({
   vehicleId,
   documents,
   canUpload,
+  canEditDelete,
 }: {
   vehicleId: string;
   documents: DocumentRecord[];
   canUpload: boolean;
+  canEditDelete: boolean;
 }) {
   const [showForm, setShowForm] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -246,7 +248,7 @@ export function DocumentTab({
                           <Download className="h-4 w-4" />
                         </Button>
                       </a>
-                      {canUpload && (
+                                      {canEditDelete && (
                         <Button
                           type="button"
                           variant="ghost"
@@ -261,7 +263,7 @@ export function DocumentTab({
                           <Pencil className="h-4 w-4" />
                         </Button>
                       )}
-                      {canUpload && (
+                                      {canEditDelete && (
                         <Button
                           variant="ghost"
                           size="icon"
@@ -344,7 +346,7 @@ export function DocumentTab({
                             </Button>
                           </Link>
                         ) : null}
-                        {canUpload && (
+                        {canEditDelete && (
                           <Button
                             variant="ghost"
                             size="icon"

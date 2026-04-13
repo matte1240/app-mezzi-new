@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { canManageVehicles, getSessionUser } from "@/lib/auth-utils";
+import { canEditDeleteEntries, getSessionUser } from "@/lib/auth-utils";
 import { mileageSchema, refuelingSchema, maintenanceSchema } from "@/lib/validators";
 import { syncRevisioneDeadline, syncTagliandoDeadline } from "@/lib/auto-deadlines";
 import { revalidatePath } from "next/cache";
@@ -136,7 +136,7 @@ export async function createMaintenance(
 
 export async function deleteRecord(type: 'mileage' | 'refueling' | 'maintenance', id: string, vehicleId: string) {
   const user = await getSessionUser();
-  if (user.role !== "ADMIN" && user.role !== "FLEET_MANAGER") {
+  if (!canEditDeleteEntries(user.role)) {
     return { error: "Non autorizzato" };
   }
   
@@ -173,7 +173,7 @@ export async function updateMileageReading(
   formData: FormData
 ) {
   const user = await getSessionUser();
-  if (!canManageVehicles(user.role)) {
+  if (!canEditDeleteEntries(user.role)) {
     return { error: "Non autorizzato" };
   }
 
@@ -197,7 +197,7 @@ export async function updateRefueling(
   formData: FormData
 ) {
   const user = await getSessionUser();
-  if (!canManageVehicles(user.role)) {
+  if (!canEditDeleteEntries(user.role)) {
     return { error: "Non autorizzato" };
   }
 
@@ -221,7 +221,7 @@ export async function updateMaintenance(
   formData: FormData
 ) {
   const user = await getSessionUser();
-  if (!canManageVehicles(user.role)) {
+  if (!canEditDeleteEntries(user.role)) {
     return { error: "Non autorizzato" };
   }
 

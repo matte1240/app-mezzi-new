@@ -11,6 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { roleLabels } from "@/lib/labels";
 import { UserFormDialog } from "@/components/users/user-form-dialog";
+import { DeleteUserButton } from "@/components/users/delete-user-button";
 
 export default async function UtentiPage() {
   await checkRole("ADMIN");
@@ -61,16 +62,19 @@ export default async function UtentiPage() {
                 </TableCell>
                 <TableCell>{u._count.assignedVehicles}</TableCell>
                 <TableCell>
-                  <UserFormDialog
-                    mode="edit"
-                    user={{
-                      id: u.id,
-                      email: u.email,
-                      name: u.name,
-                      role: u.role,
-                      active: u.active,
-                    }}
-                  />
+                  <div className="flex items-center gap-2">
+                    <UserFormDialog
+                      mode="edit"
+                      user={{
+                        id: u.id,
+                        email: u.email,
+                        name: u.name,
+                        role: u.role,
+                        active: u.active,
+                      }}
+                    />
+                    <DeleteUserButton userId={u.id} userName={u.name} />
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

@@ -11,7 +11,7 @@ type VehicleOption = { id: string; plate: string };
 
 const deadlineTypes = Object.entries(deadlineTypeLabels);
 
-export function DeadlineForm({ vehicles, canManage }: { vehicles: VehicleOption[]; canManage: boolean }) {
+export function DeadlineForm({ vehicles, canCreate }: { vehicles: VehicleOption[]; canCreate: boolean }) {
   const [showForm, setShowForm] = useState(false);
   const [state, formAction] = useActionState(createDeadline, undefined);
 
@@ -24,7 +24,7 @@ export function DeadlineForm({ vehicles, canManage }: { vehicles: VehicleOption[
             Gestione scadenze flotta aziendale
           </p>
         </div>
-        {canManage && (
+        {canCreate && (
           <button
             type="button"
             onClick={() => setShowForm(!showForm)}
@@ -36,7 +36,7 @@ export function DeadlineForm({ vehicles, canManage }: { vehicles: VehicleOption[
         )}
       </div>
 
-      {showForm && canManage && (
+      {showForm && canCreate && (
         <Card>
           <CardHeader className="pb-4">
             <CardTitle className="text-base">Nuova scadenza manuale</CardTitle>

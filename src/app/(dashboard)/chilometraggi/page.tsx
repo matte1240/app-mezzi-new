@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { getSessionUser } from "@/lib/auth-utils";
+import { getSessionUser, isAdmin } from "@/lib/auth-utils";
 import { ChilometraggiList, type MileageItem, type VehicleOption } from "@/components/chilometraggi-list";
 
 export default async function ChilometraggiPage() {
@@ -49,5 +49,5 @@ export default async function ChilometraggiPage() {
     plate: v.plate,
   }));
 
-  return <ChilometraggiList readings={items} vehicles={vehicleOptions} lastKmMap={lastKmMap} />;
+  return <ChilometraggiList readings={items} vehicles={vehicleOptions} lastKmMap={lastKmMap} canEditDelete={isAdmin(user.role)} />;
 }

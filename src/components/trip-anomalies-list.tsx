@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import { Search, TriangleAlert, Camera, Eye } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import {
   Table,
   TableBody,
@@ -19,6 +20,8 @@ import {
   tripAnomalyStatusLabels,
   tripAnomalyStatusColors,
 } from "@/lib/labels";
+import { deleteTripAnomaly, updateTripAnomaly } from "@/lib/actions/trip-anomaly-actions";
+import { useRouter } from "next/navigation";
 
 export type TripAnomalyListItem = {
   id: string;
@@ -32,6 +35,7 @@ export type TripAnomalyListItem = {
   isManual: boolean;
   createdAt: string;
   createdByName: string;
+  resolutionNotes: string | null;
   photoCount: number;
 };
 
@@ -45,13 +49,17 @@ function formatDateTime(iso: string) {
 
 export function TripAnomaliesList({
   anomalies,
+  canEditDelete = false,
 }: {
   anomalies: TripAnomalyListItem[];
+  canEditDelete?: boolean;
 }) {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [typeFilter, setTypeFilter] = useState<string>("ALL");
   const [photoFilter, setPhotoFilter] = useState<string>("ALL");
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     let list = anomalies;
@@ -106,6 +114,20 @@ export function TripAnomaliesList({
     () => [...new Set(anomalies.map((item) => item.type))],
     [anomalies]
   );
+
+  async function handleDelete(anomalyId: string) {
+    if (!confirm("Eliminare definitivamente questa segnalazione?")) {
+      return;
+    }
+
+    const result = await deleteTripAnomaly(anomalyId);
+    if (result?.error) {
+      alert(result.error);
+      return;
+    }
+
+    router.refresh();
+  }
 
   return (
     <div className="space-y-6">
@@ -213,52 +235,74 @@ export function TripAnomaliesList({
                 <TableHead>Data</TableHead>
                 <TableHead>Messaggio</TableHead>
                 <TableHead className="text-right">Dettaglio</TableHead>
+                {canEditDelete ? <TableHead className="text-right">Azioni</TableHead> : null}
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-8 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={canEditDelete ? 9 : 8} className="py-8 text-center text-sm text-muted-foreground">
                     Nessuna segnalazione trovata
                   </TableCell>
                 </TableRow>
               ) : (
                 filtered.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell>
-                      <Badge variant="outline" className="gap-1">
-                        <TriangleAlert className="h-3 w-3" />
-                        {tripAnomalyTypeLabels[item.type] || item.type}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={tripAnomalyStatusColors[item.status] || ""}>
-                        {tripAnomalyStatusLabels[item.status] || item.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-medium">{item.vehiclePlate}</TableCell>
-                    <TableCell>{item.driverName}</TableCell>
-                    <TableCell>
-                      <div className="inline-flex items-center gap-1 text-sm text-muted-foreground">
-                        <Camera className="h-3.5 w-3.5" />
-                        {item.photoCount}
-                      </div>
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap text-sm">
-                      {formatDateTime(item.createdAt)}
-                    </TableCell>
-                    <TableCell className="max-w-[280px] truncate text-sm text-muted-foreground">
-                      {item.message}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Link href={`/segnalazioni/${item.id}`}>
-                        <Button type="button" variant="outline" size="sm" className="gap-1">
-                          <Eye className="h-3.5 w-3.5" />
-                          Apri
-                        </Button>
-                      </Link>
-                    </TableCell>
-                  </TableRow>
+                  editingId === item.id ? (
+                    <TripAnomalyEditRow
+                      key={item.id}
+                      item={item}
+                      colSpan={canEditDelete ? 9 : 8}
+                      onCancel={() => setEditingId(null)}
+                    />
+                  ) : (
+                    <TableRow key={item.id}>
+                      <TableCell>
+                        <Badge variant="outline" className="gap-1">
+                          <TriangleAlert className="h-3 w-3" />
+                          {tripAnomalyTypeLabels[item.type] || item.type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={tripAnomalyStatusColors[item.status] || ""}>
+                          {tripAnomalyStatusLabels[item.status] || item.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-medium">{item.vehiclePlate}</TableCell>
+                      <TableCell>{item.driverName}</TableCell>
+                      <TableCell>
+                        <div className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+                          <Camera className="h-3.5 w-3.5" />
+                          {item.photoCount}
+                        </div>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-sm">
+                        {formatDateTime(item.createdAt)}
+                      </TableCell>
+                      <TableCell className="max-w-[280px] truncate text-sm text-muted-foreground">
+                        {item.message}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Link href={`/segnalazioni/${item.id}`}>
+                          <Button type="button" variant="outline" size="sm" className="gap-1">
+                            <Eye className="h-3.5 w-3.5" />
+                            Apri
+                          </Button>
+                        </Link>
+                      </TableCell>
+                      {canEditDelete ? (
+                        <TableCell className="text-right">
+                          <div className="inline-flex items-center gap-1">
+                            <Button type="button" variant="outline" size="sm" onClick={() => setEditingId(item.id)}>
+                              Modifica
+                            </Button>
+                            <Button type="button" variant="destructive" size="sm" onClick={() => handleDelete(item.id)}>
+                              Elimina
+                            </Button>
+                          </div>
+                        </TableCell>
+                      ) : null}
+                    </TableRow>
+                  )
                 ))
               )}
             </TableBody>
@@ -266,5 +310,86 @@ export function TripAnomaliesList({
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function TripAnomalyEditRow({
+  item,
+  colSpan,
+  onCancel,
+}: {
+  item: TripAnomalyListItem;
+  colSpan: number;
+  onCancel: () => void;
+}) {
+  const router = useRouter();
+  const [state, formAction] = useActionState(updateTripAnomaly, { error: "", success: "" });
+
+  useEffect(() => {
+    if (state?.success) {
+      onCancel();
+      router.refresh();
+    }
+  }, [state?.success, onCancel, router]);
+
+  return (
+    <TableRow>
+      <TableCell colSpan={colSpan} className="bg-muted/30 p-0 border-l-4 border-l-blue-500">
+        <div className="p-4 w-full">
+          <form action={formAction} className="flex flex-col gap-4">
+            <input type="hidden" name="anomalyId" value={item.id} />
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium">Tipo</label>
+                <select name="type" defaultValue={item.type} className="w-full rounded-md border bg-background px-3 py-2 text-sm" required>
+                  <option value="MANUAL">{tripAnomalyTypeLabels.MANUAL}</option>
+                  <option value="LONG_DURATION">{tripAnomalyTypeLabels.LONG_DURATION}</option>
+                  <option value="EXCESSIVE_DISTANCE">{tripAnomalyTypeLabels.EXCESSIVE_DISTANCE}</option>
+                  <option value="HIGH_AVERAGE_SPEED">{tripAnomalyTypeLabels.HIGH_AVERAGE_SPEED}</option>
+                  <option value="KM_INVARIATO">{tripAnomalyTypeLabels.KM_INVARIATO}</option>
+                </select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium">Stato</label>
+                <select name="status" defaultValue={item.status} className="w-full rounded-md border bg-background px-3 py-2 text-sm" required>
+                  <option value="OPEN">Aperta</option>
+                  <option value="IN_REVIEW">In lavorazione</option>
+                  <option value="RESOLVED">Risolta</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium">Messaggio</label>
+              <textarea
+                name="message"
+                defaultValue={item.message}
+                rows={3}
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                required
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium">Note risoluzione</label>
+              <textarea
+                name="resolutionNotes"
+                defaultValue={item.resolutionNotes || ""}
+                rows={3}
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                placeholder="Annota interventi o dettagli di chiusura"
+              />
+            </div>
+
+            <div className="flex items-center gap-3">
+              <SubmitButton pendingText="Salvataggio...">Salva modifiche</SubmitButton>
+              <Button type="button" variant="outline" onClick={onCancel}>Annulla</Button>
+              {state?.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
+            </div>
+          </form>
+        </div>
+      </TableCell>
+    </TableRow>
   );
 }
