@@ -78,6 +78,7 @@ type AnomalyDetailPayload = {
     status: "PLANNED" | "COMPLETED" | "CANCELLED";
     scheduledDate: Date;
     description: string;
+    garage: string | null;
     vehicleId: string;
     vehicle: {
       plate: string;
@@ -140,6 +141,7 @@ export default async function SegnalazioneDetailPage({
           status: true,
           scheduledDate: true,
           description: true,
+          garage: true,
           vehicleId: true,
           vehicle: { select: { plate: true } },
         },
@@ -175,6 +177,7 @@ export default async function SegnalazioneDetailPage({
     status: item.status,
     scheduledDate: item.scheduledDate.toISOString(),
     description: item.description,
+    garage: item.garage,
     vehicleId: item.vehicleId,
     vehiclePlate: item.vehicle.plate,
   }));

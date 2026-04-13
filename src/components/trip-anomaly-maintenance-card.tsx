@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Wrench, CalendarDays, CheckCircle2 } from "lucide-react";
+import { Wrench, CalendarDays, CheckCircle2, MapPin } from "lucide-react";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { createPlannedMaintenanceFromTripAnomaly } from "@/lib/actions/planned-maintenance-actions";
 import {
   plannedMaintenanceStatusColors,
@@ -18,6 +20,7 @@ type LinkedPlannedMaintenanceItem = {
   status: "PLANNED" | "COMPLETED" | "CANCELLED";
   scheduledDate: string;
   description: string;
+  garage: string | null;
   vehicleId: string;
   vehiclePlate: string;
 };
@@ -66,6 +69,7 @@ export function TripAnomalyMaintenanceCard({
 
   const hasOpenPlan = linkedPlanned.some((item) => item.status === "PLANNED");
   const planningDisabled = currentStatus === "RESOLVED" || hasOpenPlan;
+  const today = new Date().toISOString().slice(0, 10);
 
   return (
     <div className="space-y-4">
@@ -79,6 +83,29 @@ export function TripAnomalyMaintenanceCard({
       {canManage ? (
         <form action={formAction} className="space-y-3">
           <input type="hidden" name="anomalyId" value={anomalyId} />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor={`scheduled-date-${anomalyId}`}>Data intervento</Label>
+              <Input
+                id={`scheduled-date-${anomalyId}`}
+                name="scheduledDate"
+                type="date"
+                defaultValue={today}
+                required
+                disabled={planningDisabled}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor={`garage-${anomalyId}`}>Luogo / Officina</Label>
+              <Input
+                id={`garage-${anomalyId}`}
+                name="garage"
+                type="text"
+                placeholder="Es. Officina Rossi - Milano"
+                disabled={planningDisabled}
+              />
+            </div>
+          </div>
           <SubmitButton
             pendingText="Pianificazione..."
             type="submit"
@@ -123,6 +150,12 @@ export function TripAnomalyMaintenanceCard({
                   </span>
                 </div>
                 <p className="mt-1 text-sm">{item.description}</p>
+                {item.garage ? (
+                  <p className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
+                    <MapPin className="h-3.5 w-3.5" />
+                    {item.garage}
+                  </p>
+                ) : null}
                 <div className="mt-2 flex items-center gap-2">
                   <Link href={`/mezzi/${item.vehicleId}`}>
                     <Button type="button" variant="outline" size="sm" className="h-7 text-xs">

@@ -6,6 +6,20 @@ import { plannedMaintenanceSchema, maintenanceSchema } from "@/lib/validators";
 import { syncRevisioneDeadline, syncTagliandoDeadline } from "@/lib/auto-deadlines";
 import { revalidatePath } from "next/cache";
 
+async function validateKm(vehicleId: string, newKm: number) {
+  const lastReading = await prisma.mileageReading.findFirst({
+    where: { vehicleId },
+    orderBy: { km: "desc" },
+    select: { km: true },
+  });
+
+  if (lastReading && newKm < lastReading.km) {
+    return `Km (${newKm}) inferiore all'ultimo rilevamento (${lastReading.km} km)`;
+  }
+
+  return null;
+}
+
 export async function createPlannedMaintenance(
   _prevState: { error?: string; success?: boolean } | undefined,
   formData: FormData
@@ -144,6 +158,24 @@ export async function createPlannedMaintenanceFromTripAnomaly(
     return { error: "Segnalazione non valida" };
   }
 
+  const scheduledDateRaw = formData.get("scheduledDate");
+  let scheduledDate = new Date();
+  scheduledDate.setHours(0, 0, 0, 0);
+  if (typeof scheduledDateRaw === "string" && scheduledDateRaw.trim() !== "") {
+    const parsedDate = new Date(scheduledDateRaw);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return { error: "Data pianificazione non valida" };
+    }
+    parsedDate.setHours(0, 0, 0, 0);
+    scheduledDate = parsedDate;
+  }
+
+  const garageRaw = formData.get("garage");
+  const garage =
+    typeof garageRaw === "string" && garageRaw.trim() !== ""
+      ? garageRaw.trim()
+      : null;
+
   const anomaly = await prisma.tripAnomaly.findUnique({
     where: { id: anomalyId },
     include: {
@@ -174,9 +206,6 @@ export async function createPlannedMaintenanceFromTripAnomaly(
     return { error: "Esiste gia un intervento pianificato per questa segnalazione" };
   }
 
-  const scheduledDate = new Date();
-  scheduledDate.setHours(0, 0, 0, 0);
-
   await prisma.$transaction(async (tx) => {
     await tx.plannedMaintenance.create({
       data: {
@@ -185,6 +214,7 @@ export async function createPlannedMaintenanceFromTripAnomaly(
         type: anomalyToMaintenanceType[anomaly.type] ?? "ALTRO",
         scheduledDate,
         description: `Da segnalazione ${anomaly.trip.vehicle.plate}: ${anomaly.message}`,
+        garage,
         sourceTripAnomalyId: anomaly.id,
       },
     });
@@ -278,12 +308,32 @@ export async function completePlannedMaintenance(
     return { error: "Intervento pianificato non trovato" };
   }
 
+  if (planned.vehicleId !== parsed.data.vehicleId) {
+    return { error: "Il mezzo selezionato non corrisponde all'intervento pianificato" };
+  }
+
+  const kmError = await validateKm(parsed.data.vehicleId, parsed.data.km);
+  if (kmError) {
+    return { error: kmError };
+  }
+
   const maintenance = await prisma.$transaction(async (tx) => {
     const createdMaintenance = await tx.maintenanceIntervention.create({
       data: {
         ...parsed.data,
         userId: user.id,
         sourceTripAnomalyId: planned.sourceTripAnomalyId,
+      },
+    });
+
+    await tx.mileageReading.create({
+      data: {
+        vehicleId: parsed.data.vehicleId,
+        recordedByUserId: user.id,
+        km: parsed.data.km,
+        date: parsed.data.date,
+        source: "MAINTENANCE",
+        notes: `Fine intervento pianificato (${plannedId})`,
       },
     });
 
