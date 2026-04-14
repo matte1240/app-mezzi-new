@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendDeadlineReminder } from "@/lib/email";
 import { redisSetNxEx } from "@/lib/redis";
+import { reconcileAutoDeadlines, type AutoDeadlineReconcileResult } from "@/lib/auto-deadlines";
 
 const deadlineTypeLabels: Record<string, string> = {
   TAGLIANDO: "Tagliando",
@@ -20,6 +21,25 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const reconcileParam = request.nextUrl.searchParams.get("reconcile")?.toLowerCase();
+  const shouldReconcile =
+    reconcileParam === "1" ||
+    reconcileParam === "true" ||
+    ((reconcileParam === null || reconcileParam === "") &&
+      process.env.AUTO_DEADLINES_RECONCILE_ON_CRON !== "false");
+
+  let reconcile: AutoDeadlineReconcileResult | null = null;
+  let reconcileError: string | null = null;
+
+  if (shouldReconcile) {
+    try {
+      reconcile = await reconcileAutoDeadlines();
+    } catch (err) {
+      reconcileError = "Reconciliation failed";
+      console.error("Automatic deadlines reconciliation failed:", err);
+    }
+  }
+
   const deadlines = await prisma.deadline.findMany({
     where: { completed: false },
     include: {
@@ -36,7 +56,12 @@ export async function GET(request: NextRequest) {
   });
 
   if (admins.length === 0) {
-    return NextResponse.json({ message: "No recipients" });
+    return NextResponse.json({
+      message: "No recipients",
+      reconcileEnabled: shouldReconcile,
+      reconcile,
+      reconcileError,
+    });
   }
 
   const now = new Date();
@@ -90,5 +115,8 @@ export async function GET(request: NextRequest) {
     skippedDuplicate,
     redisUnavailable,
     processedDeadlines: deadlines.length,
+    reconcileEnabled: shouldReconcile,
+    reconcile,
+    reconcileError,
   });
 }
