@@ -27,8 +27,8 @@ COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 
 RUN mkdir -p /app/uploads && chown -R nextjs:nodejs /app/uploads /app/docker-entrypoint.sh && chmod +x /app/docker-entrypoint.sh
 
-EXPOSE ${PORT:-3000}
-ENV PORT=${PORT:-3000}
+ENV PORT=3000
+EXPOSE 3000
 ENV HOSTNAME="0.0.0.0"
 
 CMD ["/app/docker-entrypoint.sh"]
