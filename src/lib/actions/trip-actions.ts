@@ -4,18 +4,11 @@ import { prisma } from "@/lib/prisma";
 import { canRecordTrips, canEditDeleteEntries, getSessionUser } from "@/lib/auth-utils";
 import { tripStartSchema, tripStopSchema, tripUpdateSchema } from "@/lib/validators";
 import {
-  buildTripAnomalyPhotoStorage,
-  createTripAnomalyThumbnail,
   deriveTripAnomalyThumbnailPath,
-  resolveUploadDir,
 } from "@/lib/file-storage";
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
-import { mkdir, writeFile, unlink } from "fs/promises";
-
-const MAX_ANOMALY_PHOTO_SIZE = 8 * 1024 * 1024;
-const MAX_ANOMALY_PHOTOS = 5;
-const ALLOWED_PHOTO_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]);
+import { unlink } from "fs/promises";
 
 function extractVehicleIdFromQr(raw: string): string | null {
   const value = raw.trim();
@@ -230,28 +223,8 @@ export async function stopTrip(
   const endQrRaw = parsed.data.endQrRaw?.trim() || "";
   const scannedVehicleId = endQrRaw ? extractVehicleIdFromQr(endQrRaw) : null;
 
-  const anomalyPhotos = formData
-    .getAll("anomalyPhotos")
-    .filter((entry): entry is File => entry instanceof File && entry.size > 0);
-
-  if (anomalyPhotos.length > MAX_ANOMALY_PHOTOS) {
-    return { error: `Puoi caricare massimo ${MAX_ANOMALY_PHOTOS} foto` };
-  }
-
-  for (const photo of anomalyPhotos) {
-    if (!ALLOWED_PHOTO_MIME.has(photo.type)) {
-      return { error: "Formato foto non supportato. Usa JPG, PNG o WEBP" };
-    }
-    if (photo.size > MAX_ANOMALY_PHOTO_SIZE) {
-      return { error: "Ogni foto deve essere massimo 8MB" };
-    }
-  }
-
   let anomalyCount = 0;
   let tripVehicleId = "";
-  let tripVehiclePlate = "";
-  let closedTripId = "";
-  let anomalyIdForPhotos = "";
 
   try {
     await prisma.$transaction(
@@ -266,8 +239,6 @@ export async function stopTrip(
         }
 
         tripVehicleId = trip.vehicleId;
-    tripVehiclePlate = trip.vehicle.plate;
-    closedTripId = trip.id;
 
         if (user.role === "DRIVER" && trip.driverId !== user.id) {
           throw new Error("NOT_OWNER");
@@ -296,23 +267,6 @@ export async function stopTrip(
         const distance = parsed.data.endKm - trip.startKm;
 
         const automaticAnomalies = buildAutomaticAnomalies(distance, durationMinutes);
-        const manualAnomaly =
-          parsed.data.manualAnomalyType && parsed.data.manualAnomalyMessage
-            ? {
-                type: parsed.data.manualAnomalyType,
-                message: parsed.data.manualAnomalyMessage,
-                isManual: true,
-              }
-            : null;
-
-        const photoOnlyManualAnomaly =
-          !manualAnomaly && anomalyPhotos.length > 0
-            ? {
-                type: "MANUAL" as const,
-                message: "Segnalazione autista con foto allegate",
-                isManual: true,
-              }
-            : null;
 
         const closeResult = await tx.trip.updateMany({
           where: { id: trip.id, status: "OPEN" },
@@ -352,22 +306,7 @@ export async function stopTrip(
           });
         }
 
-        const effectiveManualAnomaly = manualAnomaly || photoOnlyManualAnomaly;
-
-        if (effectiveManualAnomaly) {
-          const createdManualAnomaly = await tx.tripAnomaly.create({
-            data: {
-              tripId: trip.id,
-              type: effectiveManualAnomaly.type,
-              message: effectiveManualAnomaly.message,
-              isManual: effectiveManualAnomaly.isManual,
-              createdByUserId: user.id,
-            },
-          });
-          anomalyIdForPhotos = createdManualAnomaly.id;
-        }
-
-        anomalyCount = automaticAnomalies.length + (effectiveManualAnomaly ? 1 : 0);
+        anomalyCount = automaticAnomalies.length;
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
     );
@@ -384,64 +323,6 @@ export async function stopTrip(
       if (error.message === "ALREADY_CLOSED") return { error: "Il viaggio e gia stato chiuso" };
     }
     return { error: "Impossibile chiudere il viaggio, riprova" };
-  }
-
-  if (anomalyPhotos.length > 0 && tripVehicleId && closedTripId) {
-    try {
-      for (const [index, photo] of anomalyPhotos.entries()) {
-        const storage = buildTripAnomalyPhotoStorage({
-          vehicleId: tripVehicleId,
-          vehiclePlate: tripVehiclePlate,
-          tripId: closedTripId,
-          anomalyId: anomalyIdForPhotos || "manual",
-          originalFileName: photo.name || "foto-anomalia",
-          mimeType: photo.type,
-          index,
-        });
-
-        await mkdir(storage.originalDir, { recursive: true });
-        await mkdir(storage.thumbnailDir, { recursive: true });
-
-        const bytes = await photo.arrayBuffer();
-        await writeFile(storage.filePath, Buffer.from(bytes));
-
-        try {
-          await createTripAnomalyThumbnail(storage.filePath, storage.thumbnailPath);
-        } catch (thumbnailError) {
-          console.warn("Trip photo thumbnail generation failed", {
-            tripId: closedTripId,
-            anomalyId: anomalyIdForPhotos,
-            photoPath: storage.filePath,
-            thumbnailPath: storage.thumbnailPath,
-            thumbnailError,
-          });
-        }
-
-        await prisma.document.create({
-          data: {
-            vehicleId: tripVehicleId,
-            tripAnomalyId: anomalyIdForPhotos || null,
-            uploadedByUserId: user.id,
-            type: "ALTRO",
-            name: photo.name || storage.fileName,
-            filePath: storage.filePath,
-            mimeType: photo.type,
-            sizeBytes: photo.size,
-            notes: anomalyIdForPhotos
-              ? `Foto anomalia viaggio ${closedTripId} (${anomalyIdForPhotos})`
-              : `Foto viaggio ${closedTripId}`,
-          },
-        });
-      }
-    } catch (error) {
-      console.error("Trip photo upload failed", {
-        tripId: closedTripId,
-        vehicleId: tripVehicleId,
-        uploadDir: resolveUploadDir(),
-        error,
-      });
-      return { error: "Viaggio chiuso, ma upload foto non riuscito. Riprova dal dettaglio mezzo." };
-    }
   }
 
   revalidatePath("/viaggi");

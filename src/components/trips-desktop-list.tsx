@@ -8,12 +8,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Camera, Plus, Search, TriangleAlert } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { SubmitButton } from "@/components/ui/submit-button";
 import {
   tripStatusLabels,
-  tripAnomalyTypeLabels,
-  tripAnomalyStatusLabels,
 } from "@/lib/labels";
 import { deleteTrip, updateTrip } from "@/lib/actions/trip-actions";
 import { useRouter } from "next/navigation";
@@ -28,14 +26,6 @@ export type TripListItem = {
   startKm: number;
   endKm: number | null;
   notes: string | null;
-  anomalies: {
-    id: string;
-    type: string;
-    status: string;
-    message: string;
-    isManual: boolean;
-    photoCount: number;
-  }[];
 };
 
 const tripStatusColors: Record<string, string> = {
@@ -84,8 +74,6 @@ export function TripsDesktopList({ trips, canEditDelete = false }: { trips: Trip
           t.vehiclePlate,
           t.driverName,
           t.notes ?? "",
-          t.anomalies.map((a) => tripAnomalyStatusLabels[a.status] || a.status).join(" "),
-          t.anomalies.map((a) => a.message).join(" "),
         ]
           .join(" ")
           .toLowerCase();
@@ -98,7 +86,6 @@ export function TripsDesktopList({ trips, canEditDelete = false }: { trips: Trip
 
   const openCount = trips.filter((t) => t.status === "OPEN").length;
   const completedCount = trips.filter((t) => t.status === "COMPLETED").length;
-  const anomalyCount = trips.filter((t) => t.anomalies.length > 0).length;
 
   async function handleDelete(tripId: string) {
     if (!confirm("Eliminare definitivamente questo viaggio?")) {
@@ -133,7 +120,7 @@ export function TripsDesktopList({ trips, canEditDelete = false }: { trips: Trip
       </div>
 
       {/* Summary cards */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">In corso</CardTitle>
@@ -148,14 +135,6 @@ export function TripsDesktopList({ trips, canEditDelete = false }: { trips: Trip
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{completedCount}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Con anomalie</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-orange-600">{anomalyCount}</p>
           </CardContent>
         </Card>
       </div>
@@ -196,7 +175,6 @@ export function TripsDesktopList({ trips, canEditDelete = false }: { trips: Trip
                 <TableHead>Inizio</TableHead>
                 <TableHead>Fine</TableHead>
                 <TableHead className="text-right">Km</TableHead>
-                <TableHead>Anomalie</TableHead>
                 <TableHead>Note</TableHead>
                 {canEditDelete ? <TableHead className="text-right">Azioni</TableHead> : null}
               </TableRow>
@@ -204,7 +182,7 @@ export function TripsDesktopList({ trips, canEditDelete = false }: { trips: Trip
             <TableBody>
               {filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={canEditDelete ? 9 : 8} className="py-8 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={canEditDelete ? 8 : 7} className="py-8 text-center text-sm text-muted-foreground">
                     Nessun viaggio trovato
                   </TableCell>
                 </TableRow>
@@ -215,7 +193,7 @@ export function TripsDesktopList({ trips, canEditDelete = false }: { trips: Trip
                       <TripEditRow
                         key={trip.id}
                         trip={trip}
-                        colSpan={canEditDelete ? 9 : 8}
+                        colSpan={canEditDelete ? 8 : 7}
                         onCancel={() => setEditingId(null)}
                       />
                     );
@@ -248,33 +226,6 @@ export function TripsDesktopList({ trips, canEditDelete = false }: { trips: Trip
                           <span className="text-muted-foreground">
                             {trip.startKm.toLocaleString("it-IT")} →
                           </span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {trip.anomalies.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {trip.anomalies.map((a) => (
-                              <Link key={a.id} href={`/segnalazioni/${a.id}`}>
-                                <Badge
-                                  variant="outline"
-                                  className="gap-1 border-orange-300 text-orange-700 hover:bg-orange-50"
-                                >
-                                  <TriangleAlert className="h-3 w-3" />
-                                  {tripAnomalyTypeLabels[a.type] ?? a.type}
-                                  <span className="text-orange-500/80">·</span>
-                                  {tripAnomalyStatusLabels[a.status] ?? a.status}
-                                  {a.photoCount > 0 ? (
-                                    <span className="inline-flex items-center gap-0.5">
-                                      <Camera className="h-3 w-3" />
-                                      {a.photoCount}
-                                    </span>
-                                  ) : null}
-                                </Badge>
-                              </Link>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
                       <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">

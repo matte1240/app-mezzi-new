@@ -76,16 +76,6 @@ export default async function ViaggiPage({
     include: {
       vehicle: { select: { plate: true } },
       driver: { select: { name: true } },
-      anomalies: {
-        select: {
-          id: true,
-          type: true,
-          status: true,
-          message: true,
-          isManual: true,
-          _count: { select: { photos: true } },
-        },
-      },
     },
     orderBy: { startTime: "desc" },
     take: 500,
@@ -101,14 +91,6 @@ export default async function ViaggiPage({
     startKm: t.startKm,
     endKm: t.endKm,
     notes: t.notes,
-    anomalies: t.anomalies.map((a) => ({
-      id: a.id,
-      type: a.type,
-      status: a.status,
-      message: a.message,
-      isManual: a.isManual,
-      photoCount: a._count.photos,
-    })),
   }));
 
   return <TripsDesktopList trips={tripItems} canEditDelete={isAdmin(user.role)} />;

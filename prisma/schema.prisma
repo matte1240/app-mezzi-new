@@ -86,6 +86,14 @@ enum DocumentType {
   ALTRO
 }
 
+enum VehiclePhotoTemplate {
+  FRONTE
+  RETRO
+  LATERALE_SX
+  LATERALE_DX
+  CRUSCOTTO
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -101,6 +109,7 @@ model User {
   refuelings               Refueling[]
   maintenanceInterventions MaintenanceIntervention[]
   uploadedDocuments        Document[]
+  uploadedVehiclePhotos    VehiclePhoto[]
   plannedMaintenances      PlannedMaintenance[]
   trips                    Trip[]
   createdTripAnomalies     TripAnomaly[]             @relation("TripAnomalyCreatedBy")
@@ -133,6 +142,7 @@ model Vehicle {
   documents                Document[]
   plannedMaintenances      PlannedMaintenance[]
   trips                    Trip[]
+  photos                   VehiclePhoto[]
 
   @@index([plate])
   @@index([status])
@@ -325,4 +335,23 @@ model TripAnomaly {
   @@index([type, createdAt])
   @@index([status, createdAt])
   @@index([resolvedByUserId])
+}
+
+model VehiclePhoto {
+  id               String                 @id @default(cuid())
+  vehicleId        String
+  vehicle          Vehicle                @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  template         VehiclePhotoTemplate
+  filePath         String
+  uploadedByUserId String
+  uploadedBy       User                   @relation(fields: [uploadedByUserId], references: [id])
+  uploadedAt       DateTime               @default(now())
+  createdAt        DateTime               @default(now())
+  deletedAt        DateTime?
+
+  @@unique([vehicleId, template, deletedAt])
+  @@index([vehicleId])
+  @@index([template])
+  @@index([uploadedByUserId])
+  @@index([deletedAt])
 }

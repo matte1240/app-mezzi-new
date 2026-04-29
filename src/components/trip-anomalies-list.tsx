@@ -20,7 +20,11 @@ import {
   tripAnomalyStatusLabels,
   tripAnomalyStatusColors,
 } from "@/lib/labels";
-import { deleteTripAnomaly, updateTripAnomaly } from "@/lib/actions/trip-anomaly-actions";
+import {
+  createTripAnomaly,
+  deleteTripAnomaly,
+  updateTripAnomaly,
+} from "@/lib/actions/trip-anomaly-actions";
 import { useRouter } from "next/navigation";
 
 export type TripAnomalyListItem = {
@@ -39,6 +43,13 @@ export type TripAnomalyListItem = {
   photoCount: number;
 };
 
+export type TripAnomalyTripOption = {
+  id: string;
+  vehiclePlate: string;
+  status: string;
+  startTime: string;
+};
+
 function formatDateTime(iso: string) {
   const date = new Date(iso);
   return `${date.toLocaleDateString("it-IT")} ${date.toLocaleTimeString("it-IT", {
@@ -49,12 +60,17 @@ function formatDateTime(iso: string) {
 
 export function TripAnomaliesList({
   anomalies,
+  trips,
+  canCreate = false,
   canEditDelete = false,
 }: {
   anomalies: TripAnomalyListItem[];
+  trips: TripAnomalyTripOption[];
+  canCreate?: boolean;
   canEditDelete?: boolean;
 }) {
   const router = useRouter();
+  const [createState, createFormAction] = useActionState(createTripAnomaly, { error: "", success: "" });
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [typeFilter, setTypeFilter] = useState<string>("ALL");
@@ -115,6 +131,12 @@ export function TripAnomaliesList({
     [anomalies]
   );
 
+  useEffect(() => {
+    if (createState?.success) {
+      router.refresh();
+    }
+  }, [createState?.success, router]);
+
   async function handleDelete(anomalyId: string) {
     if (!confirm("Eliminare definitivamente questa segnalazione?")) {
       return;
@@ -172,6 +194,61 @@ export function TripAnomaliesList({
           </CardContent>
         </Card>
       </div>
+
+      {canCreate ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Nuova segnalazione</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form action={createFormAction} className="grid gap-3 md:grid-cols-3">
+              <div className="flex flex-col gap-1.5 md:col-span-2">
+                <label className="text-sm font-medium">Viaggio *</label>
+                <select
+                  name="tripId"
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  required
+                >
+                  <option value="">Seleziona viaggio</option>
+                  {trips.map((trip) => (
+                    <option key={trip.id} value={trip.id}>
+                      {trip.vehiclePlate} · {formatDateTime(trip.startTime)} · {trip.status === "OPEN" ? "In corso" : "Chiuso"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium">Tipo *</label>
+                <select name="type" className="w-full rounded-md border bg-background px-3 py-2 text-sm" required>
+                  <option value="MANUAL">{tripAnomalyTypeLabels.MANUAL}</option>
+                  <option value="LONG_DURATION">{tripAnomalyTypeLabels.LONG_DURATION}</option>
+                  <option value="EXCESSIVE_DISTANCE">{tripAnomalyTypeLabels.EXCESSIVE_DISTANCE}</option>
+                  <option value="HIGH_AVERAGE_SPEED">{tripAnomalyTypeLabels.HIGH_AVERAGE_SPEED}</option>
+                  <option value="KM_INVARIATO">{tripAnomalyTypeLabels.KM_INVARIATO}</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1.5 md:col-span-3">
+                <label className="text-sm font-medium">Descrizione *</label>
+                <textarea
+                  name="message"
+                  rows={3}
+                  required
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  placeholder="Descrivi l'anomalia rilevata"
+                />
+              </div>
+
+              <div className="flex items-center gap-3 md:col-span-3">
+                <SubmitButton pendingText="Creazione...">Crea segnalazione</SubmitButton>
+                {createState?.error ? <p className="text-sm text-destructive">{createState.error}</p> : null}
+                {createState?.success ? <p className="text-sm text-green-700">{createState.success}</p> : null}
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid gap-3 lg:grid-cols-4">
         <div className="relative lg:col-span-2">

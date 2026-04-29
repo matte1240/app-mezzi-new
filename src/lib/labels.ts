@@ -93,3 +93,19 @@ export const tripAnomalyStatusColors: Record<string, string> = {
   IN_REVIEW: "bg-amber-100 text-amber-800",
   RESOLVED: "bg-green-100 text-green-800",
 };
+
+export const vehiclePhotoTemplateLabels: Record<string, string> = {
+  FRONTE: "Fronte",
+  RETRO: "Retro",
+  LATERALE_SX: "Laterale sinistro",
+  LATERALE_DX: "Laterale destro",
+  CRUSCOTTO: "Cruscotto",
+};
+
+export const vehiclePhotoTemplateOrder: string[] = [
+  "FRONTE",
+  "RETRO",
+  "LATERALE_SX",
+  "LATERALE_DX",
+  "CRUSCOTTO",
+];

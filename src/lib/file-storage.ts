@@ -145,3 +145,56 @@ export async function createTripAnomalyThumbnail(originalPath: string, thumbnail
     .webp({ quality: 72 })
     .toFile(thumbnailPath);
 }
+
+export function buildVehiclePhotoStorage({
+  vehicleId,
+  vehiclePlate,
+  template,
+  mimeType,
+}: {
+  vehicleId: string;
+  vehiclePlate: string;
+  template: string;
+  mimeType: string;
+}) {
+  const uploadDir = resolveUploadDir();
+  const originalDir = join(uploadDir, vehicleId, "foto-stato", "original");
+  const thumbnailDir = join(uploadDir, vehicleId, "foto-stato", "thumbnail");
+
+  const stamp = nowStamp();
+  const plate = normalizeToken(vehiclePlate, "mezzo");
+  const templateNorm = normalizeToken(template, "template");
+  const unique = randomUUID().slice(0, 8);
+  const extension = resolveImageExtension("", mimeType);
+
+  const baseName = `${stamp}__${plate}__${templateNorm}__${unique}`;
+  const fileName = `${baseName}${extension}`;
+  const filePath = join(originalDir, fileName);
+  const thumbnailPath = join(thumbnailDir, `${baseName}.webp`);
+
+  return {
+    originalDir,
+    thumbnailDir,
+    fileName,
+    filePath,
+    thumbnailPath,
+  };
+}
+
+export function deriveVehiclePhotoThumbnailPath(filePath: string) {
+  const marker = `${join("foto-stato", "original")}`;
+  if (!filePath.includes(marker)) return null;
+
+  const dir = dirname(filePath).replace(join("foto-stato", "original"), join("foto-stato", "thumbnail"));
+  const base = parse(filePath).name;
+  return join(dir, `${base}.webp`);
+}
+
+export async function createVehiclePhotoThumbnail(originalPath: string, thumbnailPath: string) {
+  await mkdir(dirname(thumbnailPath), { recursive: true });
+  await sharp(originalPath)
+    .rotate()
+    .resize({ width: 800, height: 600, fit: "inside", withoutEnlargement: true })
+    .webp({ quality: 80 })
+    .toFile(thumbnailPath);
+}

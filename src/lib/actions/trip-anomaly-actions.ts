@@ -1,8 +1,17 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { getSessionUser, canEditDeleteEntries } from "@/lib/auth-utils";
-import { tripAnomalyStatusUpdateSchema, tripAnomalyUpdateSchema } from "@/lib/validators";
+import {
+  getSessionUser,
+  canCreateTripAnomalies,
+  canEditDeleteEntries,
+  canManageTripAnomalies,
+} from "@/lib/auth-utils";
+import {
+  createTripAnomalySchema,
+  tripAnomalyStatusUpdateSchema,
+  tripAnomalyUpdateSchema,
+} from "@/lib/validators";
 import { revalidatePath } from "next/cache";
 import { unlink } from "fs/promises";
 import { deriveTripAnomalyThumbnailPath } from "@/lib/file-storage";
@@ -17,6 +26,56 @@ const anomalyStatusLabels: Record<string, string> = {
   IN_REVIEW: "In lavorazione",
   RESOLVED: "Risolta",
 };
+
+export async function createTripAnomaly(
+  _prevState: ActionState | undefined,
+  formData: FormData
+): Promise<ActionState> {
+  const user = await getSessionUser();
+  if (!canCreateTripAnomalies(user.role)) {
+    return { error: "Non autorizzato" };
+  }
+
+  const raw = Object.fromEntries(formData.entries());
+  const parsed = createTripAnomalySchema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0].message };
+  }
+
+  const trip = await prisma.trip.findUnique({
+    where: { id: parsed.data.tripId },
+    select: {
+      id: true,
+      driverId: true,
+      vehicleId: true,
+    },
+  });
+
+  if (!trip) {
+    return { error: "Viaggio non trovato" };
+  }
+
+  if (!canManageTripAnomalies(user.role) && trip.driverId !== user.id) {
+    return { error: "Non autorizzato" };
+  }
+
+  await prisma.tripAnomaly.create({
+    data: {
+      tripId: trip.id,
+      type: parsed.data.type,
+      message: parsed.data.message,
+      isManual: true,
+      createdByUserId: user.id,
+    },
+  });
+
+  revalidatePath("/segnalazioni");
+  revalidatePath("/viaggi");
+  revalidatePath(`/mezzi/${trip.vehicleId}`);
+  revalidatePath("/");
+
+  return { success: "Segnalazione creata" };
+}
 
 export async function updateTripAnomalyStatus(
   _prevState: ActionState | undefined,

@@ -5,7 +5,6 @@ import { startTrip, stopTrip } from "@/lib/actions/trip-actions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Input } from "@/components/ui/input";
-import { TriangleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export type VehicleTripOption = {
@@ -70,7 +69,7 @@ export function TripsMobilePanel({
       <div>
         <h1 className="text-2xl font-bold">Registro viaggio</h1>
         <p className="text-sm text-muted-foreground">
-          Km iniziali, km finali e segnalazione anomalie.
+          Inserisci km e destinazione per aprire e chiudere il viaggio.
         </p>
       </div>
 
@@ -120,44 +119,9 @@ export function TripsMobilePanel({
                       />
                     </div>
 
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-medium">Tipo anomalia</label>
-                        <select
-                          name="manualAnomalyType"
-                          className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                        >
-                          <option value="">Nessuna</option>
-                          <option value="MANUAL">Incidente o danno al mezzo</option>
-                          <option value="EXCESSIVE_DISTANCE">Percorso anomalo</option>
-                          <option value="LONG_DURATION">Fermo prolungato</option>
-                          <option value="KM_INVARIATO">Km invariati</option>
-                        </select>
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-medium">Foto danni</label>
-                        <Input name="anomalyPhotos" type="file" accept="image/*" multiple />
-                      </div>
-                    </div>
-
                     <div className="space-y-1.5">
-                      <label className="text-sm font-medium">Dettaglio anomalia</label>
-                      <Input
-                        name="manualAnomalyMessage"
-                        placeholder="Descrivi incidente, urto, guasto o altra problematica"
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-medium">Note viaggio</label>
-                      <Input name="notes" placeholder="Eventuali note di chiusura" />
-                    </div>
-
-                    <div className="rounded-md border border-orange-200 bg-orange-50 p-2 text-xs text-orange-700">
-                      <div className="flex items-start gap-2">
-                        <TriangleAlert className="mt-0.5 h-4 w-4" />
-                        <p>In caso di danni allega almeno una foto per supportare la segnalazione.</p>
-                      </div>
+                      <label className="text-sm font-medium">Destinazione *</label>
+                      <Input name="notes" placeholder="Inserisci la destinazione" required />
                     </div>
 
                     <SubmitButton pendingText="Chiusura..." className="w-full">
@@ -215,11 +179,6 @@ export function TripsMobilePanel({
                   defaultValue={selectedVehicleLastKm || 0}
                   required
                 />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Note</label>
-                <Input name="notes" placeholder="Destinazione, carico, ecc." />
               </div>
 
               <SubmitButton pendingText="Avvio..." className="w-full">

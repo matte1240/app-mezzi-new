@@ -56,6 +56,18 @@ export function canViewTripAnomalies(role: string) {
   return canRecordTrips(role);
 }
 
+export function canCreateTripAnomalies(role: string) {
+  return canRecordTrips(role);
+}
+
 export function canManageTripAnomalies(role: string) {
   return role === "ADMIN" || role === "FLEET_MANAGER";
+}
+
+export function canUploadVehiclePhotos(role: string) {
+  return role === "ADMIN" || role === "FLEET_MANAGER" || role === "DRIVER";
+}
+
+export function canViewVehiclePhotos(role: string) {
+  return canUploadVehiclePhotos(role);
 }

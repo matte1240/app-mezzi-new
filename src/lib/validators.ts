@@ -210,14 +210,6 @@ export const tripStopSchema = z.object({
   tripId: z.string().min(1),
   endKm: z.coerce.number().int().positive("Km finale non valido"),
   endQrRaw: z.string().optional().nullable(),
-  manualAnomalyType: z.preprocess(
-    (val) => (val === "" ? undefined : val),
-    z
-      .enum(["MANUAL", "LONG_DURATION", "EXCESSIVE_DISTANCE", "HIGH_AVERAGE_SPEED", "KM_INVARIATO"])
-      .optional()
-      .nullable()
-  ),
-  manualAnomalyMessage: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
 });
 
@@ -241,9 +233,16 @@ export const tripAnomalyUpdateSchema = z.object({
   ),
 });
 
+export const createTripAnomalySchema = z.object({
+  tripId: z.string().min(1, "Viaggio obbligatorio"),
+  type: z.enum(["MANUAL", "LONG_DURATION", "EXCESSIVE_DISTANCE", "HIGH_AVERAGE_SPEED", "KM_INVARIATO"]),
+  message: z.string().min(1, "Messaggio obbligatorio").max(1000, "Messaggio troppo lungo"),
+});
+
 export type TripStartInput = z.infer<typeof tripStartSchema>;
 export type TripStopInput = z.infer<typeof tripStopSchema>;
 export type TripAnomalyStatusUpdateInput = z.infer<typeof tripAnomalyStatusUpdateSchema>;
 export type TripUpdateInput = z.infer<typeof tripUpdateSchema>;
 export type TripAnomalyUpdateInput = z.infer<typeof tripAnomalyUpdateSchema>;
+export type CreateTripAnomalyInput = z.infer<typeof createTripAnomalySchema>;
 export type PlannedMaintenanceUpdateInput = z.infer<typeof plannedMaintenanceUpdateSchema>;

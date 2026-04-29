@@ -1,7 +1,7 @@
 // Service Worker — Gestione Mezzi PWA
 // Cache-first for static assets, network-first for pages/API.
 
-const CACHE_NAME = "mezzi-v1";
+const CACHE_NAME = "mezzi-v4";
 
 const PRECACHE_URLS = ["/", "/login"];
 
@@ -42,9 +42,14 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Skip Next.js static chunks — Next.js handles versioning via content hashes in prod,
+  // and in dev the filenames don't change so SW caching would serve stale bundles.
+  if (url.pathname.startsWith("/_next/")) {
+    return;
+  }
+
   // Static assets: cache-first
   if (
-    url.pathname.startsWith("/_next/static/") ||
     url.pathname.startsWith("/icon-") ||
     url.pathname.match(/\.(js|css|woff2?|ttf|otf|png|jpg|jpeg|svg|webp|ico)$/)
   ) {
@@ -64,16 +69,6 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Pages: network-first with cache fallback
-  event.respondWith(
-    fetch(request)
-      .then((response) => {
-        if (response.ok) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-        }
-        return response;
-      })
-      .catch(() => caches.match(request))
-  );
+  // Pages: network-only (no cache) for fresh content in dev
+  event.respondWith(fetch(request));
 });

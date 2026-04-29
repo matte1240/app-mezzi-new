@@ -84,17 +84,24 @@ export default async function VehicleDetailPage({
             </p>
           </div>
         </div>
-        {canEditDelete && (
-          <div className="flex gap-2">
-            <Link href={`/mezzi/${id}/modifica`}>
-              <Button variant="outline" size="sm">
-                <Pencil className="mr-2 h-4 w-4" />
-                Modifica
-              </Button>
-            </Link>
-            <DeleteVehicleButton vehicleId={id} plate={vehicle.plate} />
-          </div>
-        )}
+        <div className="flex gap-2">
+          {canEditDelete && (
+            <>
+              <Link href={`/mezzi/${id}/modifica`}>
+                <Button variant="outline" size="sm">
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Modifica
+                </Button>
+              </Link>
+              <DeleteVehicleButton vehicleId={id} plate={vehicle.plate} />
+            </>
+          )}
+          <Link href={`/stato-mezzo/${id}`}>
+            <Button variant="outline" size="sm">
+              Stato mezzo
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Info cards */}
